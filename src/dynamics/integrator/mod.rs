@@ -541,14 +541,14 @@ mod tests {
                 {
                     (
                         MassPropertiesBundle::from_shape(&Rectangle::from_length(1.0), 1.0),
-                        AngularVelocity(2.0),
+                        Velocity::from_angular(2.0),
                     )
                 },
                 #[cfg(feature = "3d")]
                 {
                     (
                         MassPropertiesBundle::from_shape(&Cuboid::from_length(1.0), 1.0),
-                        AngularVelocity(Vector::Z * 2.0),
+                        Velocity::from_angular(Vector::Z * 2.0),
                     )
                 },
             ))
@@ -571,8 +571,7 @@ mod tests {
         let entity_ref = app.world_mut().entity(body_entity);
         let position = entity_ref.get::<Position>().unwrap().0;
         let rotation = *entity_ref.get::<Rotation>().unwrap();
-        let linear_velocity = entity_ref.get::<LinearVelocity>().unwrap().0;
-        let angular_velocity = entity_ref.get::<AngularVelocity>().unwrap().0;
+        let velocity = entity_ref.get::<Velocity>().unwrap();
 
         // Euler methods have some precision issues, but this seems weirdly inaccurate.
         assert_relative_eq!(position, Vector::NEG_Y * 490.5, epsilon = 10.0);
@@ -590,10 +589,10 @@ mod tests {
             epsilon = 0.01
         );
 
-        assert_relative_eq!(linear_velocity, Vector::NEG_Y * 98.1, epsilon = 0.0001);
+        assert_relative_eq!(velocity.linear, Vector::NEG_Y * 98.1, epsilon = 0.0001);
         #[cfg(feature = "2d")]
-        assert_relative_eq!(angular_velocity, 2.0, epsilon = 0.00001);
+        assert_relative_eq!(velocity.angular, 2.0, epsilon = 0.00001);
         #[cfg(feature = "3d")]
-        assert_relative_eq!(angular_velocity, Vector::Z * 2.0, epsilon = 0.00001);
+        assert_relative_eq!(velocity.angular, Vector::Z * 2.0, epsilon = 0.00001);
     }
 }

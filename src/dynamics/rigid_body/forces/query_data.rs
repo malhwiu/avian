@@ -107,8 +107,7 @@ use super::AccumulatedLocalAcceleration;
 pub struct Forces {
     position: Read<Position>,
     rotation: Read<Rotation>,
-    linear_velocity: Write<LinearVelocity>,
-    angular_velocity: Write<AngularVelocity>,
+    velocity: Write<Velocity>,
     mass: Read<ComputedMass>,
     angular_inertia: Read<ComputedAngularInertia>,
     center_of_mass: Read<ComputedCenterOfMass>,
@@ -133,8 +132,7 @@ impl ForcesItem<'_, '_> {
         ForcesItem {
             position: self.position,
             rotation: self.rotation,
-            linear_velocity: self.linear_velocity.reborrow(),
-            angular_velocity: self.angular_velocity.reborrow(),
+            velocity: self.velocity.reborrow(),
             mass: self.mass,
             angular_inertia: self.angular_inertia,
             center_of_mass: self.center_of_mass,
@@ -279,7 +277,7 @@ pub trait RigidBodyForces: RigidBodyForcesInternal {
                 .locked_axes()
                 .apply_to_vec(Vector::splat(self.inverse_mass()));
             let delta_vel = effective_inverse_mass * impulse;
-            *self.linear_velocity_mut() += delta_vel;
+            self.vel_mut().linear += delta_vel;
         }
     }
 
@@ -324,7 +322,7 @@ pub trait RigidBodyForces: RigidBodyForcesInternal {
                 .locked_axes()
                 .apply_to_vec(Vector::splat(self.inverse_mass()));
             let delta_vel = effective_inverse_mass * world_impulse;
-            *self.linear_velocity_mut() += delta_vel;
+            self.vel_mut().linear += delta_vel;
         }
     }
 
@@ -341,7 +339,7 @@ pub trait RigidBodyForces: RigidBodyForcesInternal {
                 .locked_axes()
                 .apply_to_angular_inertia(self.global_inverse_angular_inertia());
             let delta_vel = effective_inverse_angular_inertia * impulse;
-            *self.angular_velocity_mut() += delta_vel;
+            self.vel_mut().angular += delta_vel;
         }
     }
 
@@ -360,7 +358,7 @@ pub trait RigidBodyForces: RigidBodyForcesInternal {
                 .locked_axes()
                 .apply_to_angular_inertia(self.global_inverse_angular_inertia());
             let delta_vel = effective_inverse_angular_inertia * world_impulse;
-            *self.angular_velocity_mut() += delta_vel;
+            self.vel_mut().angular += delta_vel;
         }
     }
 
@@ -528,28 +526,16 @@ pub trait RigidBodyForces: RigidBodyForcesInternal {
         self.rot()
     }
 
-    /// Returns the [`LinearVelocity`] of the body in world space.
+    /// Returns the [`Velocity`] of the body in world space.
     #[inline]
-    fn linear_velocity(&self) -> Vector {
-        self.lin_vel()
+    fn velocity(&self) -> &Velocity {
+        self.vel()
     }
 
-    /// Returns a mutable reference to the [`LinearVelocity`] of the body in world space.
+    /// Returns a mutable reference to the [`Velocity`] of the body in world space.
     #[inline]
-    fn linear_velocity_mut(&mut self) -> &mut Vector {
-        self.lin_vel_mut()
-    }
-
-    /// Returns the [`AngularVelocity`] of the body in world space.
-    #[inline]
-    fn angular_velocity(&self) -> AngularVector {
-        self.ang_vel()
-    }
-
-    /// Returns a mutable reference to the [`AngularVelocity`] of the body in world space.
-    #[inline]
-    fn angular_velocity_mut(&mut self) -> &mut AngularVector {
-        self.ang_vel_mut()
+    fn velocity_mut(&mut self) -> &mut Velocity {
+        self.vel_mut()
     }
 
     /// Returns the velocity of a point in world space on the body.
@@ -557,14 +543,7 @@ pub trait RigidBodyForces: RigidBodyForcesInternal {
     #[doc(alias = "linear_velocity_at_point")]
     fn velocity_at_point(&self, world_point: Vector) -> Vector {
         let offset = world_point - self.global_center_of_mass();
-        #[cfg(feature = "2d")]
-        {
-            self.linear_velocity() + self.angular_velocity() * offset.perp()
-        }
-        #[cfg(feature = "3d")]
-        {
-            self.linear_velocity() + self.angular_velocity().cross(offset)
-        }
+        self.vel().at_point(offset)
     }
 }
 
@@ -572,10 +551,8 @@ pub trait RigidBodyForces: RigidBodyForcesInternal {
 trait RigidBodyForcesInternal {
     fn pos(&self) -> &Position;
     fn rot(&self) -> &Rotation;
-    fn lin_vel(&self) -> Vector;
-    fn lin_vel_mut(&mut self) -> &mut Vector;
-    fn ang_vel(&self) -> AngularVector;
-    fn ang_vel_mut(&mut self) -> &mut AngularVector;
+    fn vel(&self) -> &Velocity;
+    fn vel_mut(&mut self) -> &mut Velocity;
     fn inverse_mass(&self) -> Scalar;
     #[cfg(feature = "3d")]
     fn inverse_angular_inertia(&self) -> SymmetricTensor;
@@ -599,20 +576,12 @@ impl RigidBodyForcesInternal for ForcesItem<'_, '_> {
         self.rotation
     }
     #[inline]
-    fn lin_vel(&self) -> Vector {
-        self.linear_velocity.0
+    fn vel(&self) -> &Velocity {
+        &self.velocity
     }
     #[inline]
-    fn lin_vel_mut(&mut self) -> &mut Vector {
-        &mut self.linear_velocity.0
-    }
-    #[inline]
-    fn ang_vel(&self) -> AngularVector {
-        self.angular_velocity.0
-    }
-    #[inline]
-    fn ang_vel_mut(&mut self) -> &mut AngularVector {
-        &mut self.angular_velocity.0
+    fn vel_mut(&mut self) -> &mut Velocity {
+        &mut self.velocity
     }
     #[inline]
     fn inverse_mass(&self) -> Scalar {
@@ -677,20 +646,12 @@ impl RigidBodyForcesInternal for NonWakingForcesItem<'_, '_> {
         self.0.rot()
     }
     #[inline]
-    fn lin_vel(&self) -> Vector {
-        self.0.lin_vel()
+    fn vel(&self) -> &Velocity {
+        self.0.vel()
     }
     #[inline]
-    fn lin_vel_mut(&mut self) -> &mut Vector {
-        self.0.lin_vel_mut()
-    }
-    #[inline]
-    fn ang_vel(&self) -> AngularVector {
-        self.0.ang_vel()
-    }
-    #[inline]
-    fn ang_vel_mut(&mut self) -> &mut AngularVector {
-        self.0.ang_vel_mut()
+    fn vel_mut(&mut self) -> &mut Velocity {
+        self.0.vel_mut()
     }
     #[inline]
     fn inverse_mass(&self) -> Scalar {

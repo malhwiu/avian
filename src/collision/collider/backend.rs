@@ -497,31 +497,20 @@ fn update_aabb<C: AnyCollider>(
             &mut ColliderAabb,
             &Position,
             &Rotation,
+            Option<&Velocity>,
             Option<&ColliderOf>,
             Option<&CollisionMargin>,
             Option<&SpeculativeMargin>,
             Has<SweptCcd>,
-            Option<&LinearVelocity>,
-            Option<&AngularVelocity>,
         ),
         Or<(
             Changed<Position>,
             Changed<Rotation>,
-            Changed<LinearVelocity>,
-            Changed<AngularVelocity>,
+            Changed<Velocity>,
             Changed<C>,
         )>,
     >,
-    rb_velocities: Query<
-        (
-            &Position,
-            &Rotation,
-            &ComputedCenterOfMass,
-            &LinearVelocity,
-            &AngularVelocity,
-        ),
-        With<Children>,
-    >,
+    rb_velocities: Query<(&Position, &Rotation, &ComputedCenterOfMass, &Velocity), With<Children>>,
     narrow_phase_config: Res<NarrowPhaseConfig>,
     length_unit: Res<PhysicsLengthUnit>,
     time: Res<Time>,
@@ -537,12 +526,11 @@ fn update_aabb<C: AnyCollider>(
         mut aabb,
         pos,
         rot,
+        vel,
         collider_of,
         collision_margin,
         speculative_margin,
         has_swept_ccd,
-        lin_vel,
-        ang_vel,
     ) in &mut colliders
     {
         let collision_margin = collision_margin.map_or(0.0, |margin| margin.0);
@@ -562,9 +550,9 @@ fn update_aabb<C: AnyCollider>(
         }
 
         // Expand the AABB based on the body's velocity and CCD speculative margin.
-        let (lin_vel, ang_vel) = if let (Some(lin_vel), Some(ang_vel)) = (lin_vel, ang_vel) {
-            (*lin_vel, *ang_vel)
-        } else if let Some(Ok((rb_pos, rb_rot, center_of_mass, lin_vel, ang_vel))) =
+        let vel = if let Some(vel) = vel {
+            *vel
+        } else if let Some(Ok((rb_pos, rb_rot, center_of_mass, vel))) =
             collider_of.map(|&ColliderOf { body }| rb_velocities.get(body))
         {
             // If the rigid body is rotating, off-center colliders will orbit around it,
@@ -576,12 +564,12 @@ fn update_aabb<C: AnyCollider>(
             let offset = pos.0 - rb_pos.0 - rb_rot * center_of_mass.0;
             #[cfg(feature = "2d")]
             let vel_at_offset =
-                lin_vel.0 + Vector::new(-ang_vel.0 * offset.y, ang_vel.0 * offset.x) * 1.0;
+                vel.linear + Vector::new(-vel.angular * offset.y, vel.angular * offset.x) * 1.0;
             #[cfg(feature = "3d")]
-            let vel_at_offset = lin_vel.0 + ang_vel.cross(offset);
-            (LinearVelocity(vel_at_offset), *ang_vel)
+            let vel_at_offset = vel.linear + vel.angular.cross(offset);
+            Velocity::new(vel_at_offset, vel.angular)
         } else {
-            (LinearVelocity::ZERO, AngularVelocity::ZERO)
+            Velocity::ZERO
         };
 
         // Current position and predicted position for next feame
@@ -591,19 +579,19 @@ fn update_aabb<C: AnyCollider>(
             {
                 (
                     pos.0
-                        + (lin_vel.0 * delta_secs)
+                        + (vel.linear * delta_secs)
                             .clamp_length_max(speculative_margin.max(contact_tolerance)),
-                    *rot * Rotation::radians(ang_vel.0 * delta_secs),
+                    *rot * Rotation::radians(vel.angular * delta_secs),
                 )
             }
             #[cfg(feature = "3d")]
             {
                 let end_rot =
-                    Rotation(Quaternion::from_scaled_axis(ang_vel.0 * delta_secs) * rot.0)
+                    Rotation(Quaternion::from_scaled_axis(vel.angular * delta_secs) * rot.0)
                         .fast_renormalize();
                 (
                     pos.0
-                        + (lin_vel.0 * delta_secs)
+                        + (vel.linear * delta_secs)
                             .clamp_length_max(speculative_margin.max(contact_tolerance)),
                     end_rot,
                 )
