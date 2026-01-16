@@ -239,8 +239,8 @@ fn debug_render_aabbs(
 
             gizmos.aabb_3d(
                 Aabb3d {
-                    min: Vec3A::from(aabb.min),
-                    max: Vec3A::from(aabb.max),
+                    min: Vec3A::from(aabb.min.f32()),
+                    max: Vec3A::from(aabb.max.f32()),
                 },
                 Transform::IDENTITY,
                 color,
@@ -509,8 +509,8 @@ fn debug_render_islands(
 
                 gizmos.aabb_3d(
                     Aabb3d {
-                        min: Vec3A::from(aabb.min),
-                        max: Vec3A::from(aabb.max),
+                        min: Vec3A::from(aabb.min.f32()),
+                        max: Vec3A::from(aabb.max.f32()),
                     },
                     Transform::IDENTITY,
                     color,
