@@ -14,7 +14,7 @@ use bevy::{
     camera::Exposure,
     core_pipeline::tonemapping::Tonemapping,
     mesh::{Indices, PrimitiveTopology},
-    pbr::EarthlikeAtmosphere,
+    pbr::{Atmosphere, ScatteringMedium},
     prelude::*,
 };
 use examples_common_3d::ExampleCommonPlugin;
@@ -34,7 +34,7 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    earthlike_atmosphere: Res<EarthlikeAtmosphere>,
+    mut scattering_media: ResMut<Assets<ScatteringMedium>>,
 ) {
     // Create a voxelized bowl-like surface by sampling points.
     let mut points = vec![];
@@ -147,7 +147,7 @@ fn setup(
     // Camera and atmosphere
     commands.spawn((
         Camera3d::default(),
-        earthlike_atmosphere.get(),
+        Atmosphere::earthlike(scattering_media.add(ScatteringMedium::default())),
         AmbientLight {
             brightness: 4000.0,
             color: Color::WHITE,
