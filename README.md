@@ -159,13 +159,13 @@ cargo run --example cubes --no-default-features --features "3d f64 parry-f64"
 
 ## Version Table
 
-| Bevy    | Avian     |
-| ------- | --------- |
-| 0.18    | 0.5, main |
-| 0.17    | 0.4       |
-| 0.16    | 0.3       |
-| 0.15    | 0.2       |
-| 0.14    | 0.1       |
+| Bevy    | Avian             |
+| ------- | ----------------- |
+| 0.18    | 0.6-rc, 0.5, main |
+| 0.17    | 0.4               |
+| 0.16    | 0.3               |
+| 0.15    | 0.2               |
+| 0.14    | 0.1               |
 
 Avian provides [migration guides](./migration-guides) for each version.
 
