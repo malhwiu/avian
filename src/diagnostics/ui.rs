@@ -3,6 +3,7 @@
 //!
 //! See [`PhysicsDiagnosticsPlugin`] for more information.
 
+use crate::collider_tree::ColliderTreeDiagnostics;
 use crate::dynamics::solver::constraint_graph::ConstraintGraph;
 use crate::{collision::CollisionDiagnostics, dynamics::solver::SolverDiagnostics};
 use crate::{diagnostics::*, prelude::*};
@@ -149,6 +150,7 @@ fn setup_diagnostics_ui(mut commands: Commands, settings: Res<PhysicsDiagnostics
                 left: Val::Px(5.0),
                 width: Val::Px(270.0),
                 padding: UiRect::all(Val::Px(10.0)),
+                border_radius: BorderRadius::all(Val::Px(5.0)),
                 display: if settings.enabled {
                     Display::Flex
                 } else {
@@ -159,7 +161,6 @@ fn setup_diagnostics_ui(mut commands: Commands, settings: Res<PhysicsDiagnostics
                 ..default()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.8)),
-            BorderRadius::all(Val::Px(5.0)),
         ))
         .with_children(build_diagnostic_texts);
 }
@@ -264,7 +265,6 @@ fn build_diagnostic_texts(cmd: &mut RelatedSpawnerCommands<ChildOf>) {
     // Spatial query timers
     type Spatial = SpatialQueryDiagnostics;
     let spatial_query_timers = vec![
-        ("Spatial Query BVH", Spatial::UPDATE_PIPELINE),
         ("Ray Casters", Spatial::UPDATE_RAY_CASTERS),
         ("Shape Casters", Spatial::UPDATE_SHAPE_CASTERS),
         #[cfg(feature = "bevy_picking")]
@@ -277,6 +277,15 @@ fn build_diagnostic_texts(cmd: &mut RelatedSpawnerCommands<ChildOf>) {
         .with_children(|cmd| {
             cmd.timer_texts(spatial_query_timers, AdaptiveTextSettings::new(0.0, 4.0));
         });
+
+    // Collider tree timers
+    let collider_tree_timers = vec![
+        ("Update AABBs", ColliderTreeDiagnostics::UPDATE),
+        ("Optimize Trees", ColliderTreeDiagnostics::OPTIMIZE),
+    ];
+    cmd.diagnostic_group("Collider Trees").with_children(|cmd| {
+        cmd.timer_texts(collider_tree_timers, AdaptiveTextSettings::new(0.0, 4.0));
+    });
 
     cmd.diagnostic_group("Other").with_children(|cmd| {
         cmd.timer_text(

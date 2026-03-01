@@ -7,10 +7,12 @@
 mod configuration;
 mod gizmos;
 
+use bevy_math::bounding::Aabb3d;
 pub use configuration::*;
 pub use gizmos::*;
 
 use crate::{
+    collider_tree::ColliderTrees,
     dynamics::{
         joints::EntityConstraint,
         solver::islands::{BodyIslandNode, PhysicsIslands},
@@ -40,6 +42,7 @@ use bevy::{
 /// - [`RayCaster`]
 /// - [`ShapeCaster`]
 /// - [Simulation islands](dynamics::solver::islands)
+/// - [Collider tree](crate::collider_tree) nodes
 /// - Changing the visibility of entities to only show debug rendering
 ///
 /// By default, [AABBs](ColliderAabb) and [contacts](ContactPair) are not debug rendered.
@@ -106,6 +109,7 @@ impl Plugin for PhysicsDebugPlugin {
             (
                 debug_render_axes,
                 debug_render_aabbs,
+                debug_render_bvh,
                 #[cfg(all(
                     feature = "default-collider",
                     any(feature = "parry-f32", feature = "parry-f64")
@@ -216,17 +220,15 @@ fn debug_render_aabbs(
                 }
             }
 
-            gizmos.cuboid(
-                Transform::from_scale(Vector::from(aabb.size()).extend(0.0).f32())
-                    .with_translation(Vector::from(aabb.center()).extend(0.0).f32()),
-                color,
-            );
+            gizmos.rect_2d(aabb.center().f32(), aabb.size().f32(), color);
         }
     }
 
     #[cfg(feature = "3d")]
     for (entity, aabb, collider_rb, render_config) in &aabbs {
         if let Some(mut color) = render_config.map_or(config.aabb_color, |c| c.aabb_color) {
+            use bevy_math::bounding::Aabb3d;
+
             let collider_rb = collider_rb.map_or(entity, |c| c.body);
 
             // If the body is sleeping, multiply the color by the sleeping color multiplier
@@ -239,10 +241,35 @@ fn debug_render_aabbs(
                 }
             }
 
-            gizmos.cuboid(
-                Transform::from_scale(Vector::from(aabb.size()).f32())
-                    .with_translation(Vector::from(aabb.center()).f32()),
+            gizmos.aabb_3d(
+                Aabb3d {
+                    min: Vec3A::from(aabb.min.f32()),
+                    max: Vec3A::from(aabb.max.f32()),
+                },
+                Transform::IDENTITY,
                 color,
+            );
+        }
+    }
+}
+
+fn debug_render_bvh(
+    bvh: Res<ColliderTrees>,
+    mut gizmos: Gizmos<PhysicsGizmos>,
+    store: Res<GizmoConfigStore>,
+) {
+    let config = store.config::<PhysicsGizmos>().1;
+
+    let Some(collider_tree_color) = config.collider_tree_color else {
+        return;
+    };
+
+    for node in bvh.iter_trees().flat_map(|tree| tree.bvh.nodes.iter()) {
+        if node.prim_count == 0 && node.aabb.valid() {
+            gizmos.aabb_3d(
+                Aabb3d::from_min_max(node.aabb.min.to_array(), node.aabb.max.to_array()),
+                Transform::IDENTITY,
+                collider_tree_color,
             );
         }
     }
@@ -500,17 +527,18 @@ fn debug_render_islands(
             // Render the island's AABB.
             #[cfg(feature = "2d")]
             {
-                gizmos.cuboid(
-                    Transform::from_scale(Vector::from(aabb.size()).extend(0.0).f32())
-                        .with_translation(Vector::from(aabb.center()).extend(0.0).f32()),
-                    color,
-                );
+                gizmos.rect_2d(aabb.center().f32(), aabb.size().f32(), color);
             }
             #[cfg(feature = "3d")]
             {
-                gizmos.cuboid(
-                    Transform::from_scale(Vector::from(aabb.size()).f32())
-                        .with_translation(Vector::from(aabb.center()).f32()),
+                use bevy_math::bounding::Aabb3d;
+
+                gizmos.aabb_3d(
+                    Aabb3d {
+                        min: Vec3A::from(aabb.min.f32()),
+                        max: Vec3A::from(aabb.max.f32()),
+                    },
+                    Transform::IDENTITY,
                     color,
                 );
             }

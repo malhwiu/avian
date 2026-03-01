@@ -2,6 +2,8 @@
 //!
 //! See the documentation of [`MoveAndSlide`] for more information.
 
+pub use super::velocity_project::*;
+
 use crate::{collision::collider::contact_query::contact_manifolds, prelude::*};
 use bevy::{ecs::system::SystemParam, prelude::*};
 use core::time::Duration;
@@ -65,8 +67,8 @@ pub const COS_5_DEGREES: Scalar = 0.99619469809;
 #[doc(alias = "CollideAndSlide")]
 #[doc(alias = "StepSlide")]
 pub struct MoveAndSlide<'w, 's> {
-    /// The [`SpatialQueryPipeline`] used to perform spatial queries.
-    pub query_pipeline: Res<'w, SpatialQueryPipeline>,
+    /// The [`SpatialQuery`] system parameter used to perform shape casts and other geometric queries.
+    pub spatial_query: SpatialQuery<'w, 's>,
     /// The [`Query`] used to query for colliders.
     pub colliders: Query<
         'w,
@@ -317,6 +319,27 @@ impl<'a> MoveAndSlideHitData<'a> {
     }
 }
 
+/// Indicates how to handle a hit detected during [`MoveAndSlide::move_and_slide`].
+///
+/// This is returned by the `on_hit` callback provided to [`MoveAndSlide::move_and_slide`].
+#[derive(Debug, PartialEq)]
+pub enum MoveAndSlideHitResponse {
+    /// Accept the hit and continue the move and slide algorithm.
+    Accept,
+
+    /// Ignore the hit and continue the move and slide algorithm.
+    ///
+    /// Note that the shape will still be moved up to the point of collision,
+    /// but the velocity will not be modified to slide along the surface.
+    Ignore,
+
+    /// Ignore the hit and abort the move and slide algorithm.
+    ///
+    /// Note that the shape will still be moved up to the point of collision,
+    /// but no further movement or velocity modification will be performed.
+    Abort,
+}
+
 /// Data related to a hit during [`MoveAndSlide::cast_move`].
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
@@ -386,8 +409,8 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     /// - `config`: A [`MoveAndSlideConfig`] that determines the behavior of the move and slide. [`MoveAndSlideConfig::default()`] should be a good start for most cases.
     /// - `filter`: A [`SpatialQueryFilter`] that determines which colliders are taken into account in the query. It is highly recommended to exclude the entity holding the collider itself,
     ///   otherwise the character will collide with itself.
-    /// - `on_hit`: A callback that is called when a collider is hit as part of the move and slide iterations. Returning `false` will abort the move and slide operation.
-    ///   If you don't have any special handling per collision, you can pass `|_| true`.
+    /// - `on_hit`: A callback that is called when a collider is hit as part of the move and slide iterations. The returned [`MoveAndSlideHitResponse`] determines how to handle the hit.
+    ///   If you don't have any special handling per collision, you can pass `|_| MoveAndSlideHitResponse::Accept`.
     ///
     /// # Example
     ///
@@ -441,7 +464,7 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     ///         &filter,
     ///         |hit| {
     ///             collisions.insert(hit.entity);
-    ///             true
+    ///             MoveAndSlideHitResponse::Accept
     ///         },
     ///     );
     #[cfg_attr(
@@ -468,7 +491,7 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
         delta_time: Duration,
         config: &MoveAndSlideConfig,
         filter: &SpatialQueryFilter,
-        mut on_hit: impl FnMut(MoveAndSlideHitData) -> bool,
+        mut on_hit: impl FnMut(MoveAndSlideHitData) -> MoveAndSlideHitResponse,
     ) -> MoveAndSlideOutput {
         let mut position = shape_position;
         let mut time_left = {
@@ -515,7 +538,7 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
                 position += sweep;
                 break;
             };
-            let point = sweep_hit.point2 + position;
+            let point = sweep_hit.point2;
 
             // Move up to the hit point.
             time_left -= time_left * (sweep_hit.distance / distance);
@@ -529,7 +552,7 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
             // due to a Parry bug. Otherwise, `contact_manifolds` would pick up this normal anyways.
             // TODO: Remove this once the collision bug is fixed.
             let mut first_normal = Dir::new_unchecked(sweep_hit.normal1.f32());
-            if on_hit(MoveAndSlideHitData {
+            let hit_response = on_hit(MoveAndSlideHitData {
                 entity: sweep_hit.entity,
                 point,
                 normal: &mut first_normal,
@@ -537,11 +560,16 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
                 distance: sweep_hit.distance,
                 position: &mut position,
                 velocity: &mut velocity,
-            }) {
+            });
+
+            if hit_response == MoveAndSlideHitResponse::Accept {
                 planes.push(first_normal);
+            } else if hit_response == MoveAndSlideHitResponse::Abort {
+                break;
             }
 
             // Collect contact planes.
+            let mut aborted = false;
             self.intersections(
                 shape,
                 position,
@@ -572,7 +600,7 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
                     }
 
                     // Call the user-defined hit callback.
-                    if !on_hit(MoveAndSlideHitData {
+                    let hit_response = on_hit(MoveAndSlideHitData {
                         entity: sweep_hit.entity,
                         point: contact_point.point,
                         normal: &mut normal,
@@ -580,14 +608,20 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
                         distance: sweep_hit.distance,
                         position: &mut position,
                         velocity: &mut velocity,
-                    }) {
-                        return false;
+                    });
+
+                    match hit_response {
+                        MoveAndSlideHitResponse::Accept => {
+                            // Add the contact plane for velocity clipping.
+                            planes.push(normal);
+                            true
+                        }
+                        MoveAndSlideHitResponse::Ignore => true,
+                        MoveAndSlideHitResponse::Abort => {
+                            aborted = true;
+                            false
+                        }
                     }
-
-                    // Add the contact plane for velocity clipping.
-                    planes.push(normal);
-
-                    true
                 },
             );
 
@@ -595,6 +629,10 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
 
             // Project velocity to slide along contact planes.
             velocity = Self::project_velocity(velocity, &planes);
+
+            if aborted {
+                break;
+            }
         }
 
         // Final depenetration pass
@@ -740,7 +778,7 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     ///
     /// # Related methods
     ///
-    /// - [`SpatialQueryPipeline::cast_shape`]
+    /// - [`SpatialQuery::cast_shape`]
     #[must_use]
     #[doc(alias = "sweep")]
     pub fn cast_move(
@@ -754,7 +792,7 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     ) -> Option<MoveHitData> {
         let (direction, distance) = Dir::new_and_length(movement.f32()).unwrap_or((Dir::X, 0.0));
         let distance = distance.adjust_precision();
-        let shape_hit = self.query_pipeline.cast_shape_predicate(
+        let shape_hit = self.spatial_query.cast_shape_predicate(
             shape,
             shape_position,
             shape_rotation,
@@ -1043,10 +1081,10 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
             .aabb(shape_position, shape_rotation)
             .grow(Vector::splat(prediction_distance));
         let aabb_intersections = self
-            .query_pipeline
+            .spatial_query
             .aabb_intersections_with_aabb(expanded_aabb);
 
-        for intersection_entity in aabb_intersections {
+        'outer: for intersection_entity in aabb_intersections {
             let Ok((intersection_collider, intersection_pos, intersection_rot, layers)) =
                 self.colliders.get(intersection_entity)
             else {
@@ -1073,7 +1111,11 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
                 };
 
                 let normal = Dir::new_unchecked(-manifold.normal.f32());
-                callback(deepest, normal);
+
+                if !callback(deepest, normal) {
+                    // Abort further processing.
+                    break 'outer;
+                }
             }
         }
     }
@@ -1085,97 +1127,6 @@ impl<'w, 's> MoveAndSlide<'w, 's> {
     /// does not try to continue moving into colliding geometry.
     #[must_use]
     pub fn project_velocity(v: Vector, normals: &[Dir]) -> Vector {
-        if normals.is_empty() {
-            return v;
-        }
-
-        // The halfspaces defined by the contact normals form a polyhedral cone.
-        // We want to find the closest point to v that lies inside this cone.
-        //
-        // There are three cases to consider:
-        // 1. v is already inside the cone -> return v
-        // 2. v is outside the cone
-        //    a. Project v onto each plane and check if the projection is inside the cone
-        //    b. Project v onto each edge (intersection of two planes) and check if the projection is inside the cone
-        // 3. If no valid projection is found, return the apex of the cone (the origin)
-
-        // Case 1: Check if v is inside the cone
-        if normals
-            .iter()
-            .all(|normal| normal.adjust_precision().dot(v) >= -DOT_EPSILON)
-        {
-            return v;
-        }
-
-        // Best candidate so far
-        let mut best_projection = Vector::ZERO;
-        let mut best_distance_sq = Scalar::INFINITY;
-
-        // Helper to test halfspace validity
-        let is_valid = |projection: Vector| {
-            normals
-                .iter()
-                .all(|n| projection.dot(n.adjust_precision()) >= -DOT_EPSILON)
-        };
-
-        // Case 2a: Face projections (single-plane active set)
-        for n in normals {
-            let n = n.adjust_precision();
-            let n_dot_v = n.dot(v);
-            if n_dot_v < -DOT_EPSILON {
-                // Project v onto the plane defined by n:
-                // projection = v - (v · n) n
-                let projection = v - n_dot_v * n;
-
-                // Check if better than previous best and valid
-                let distance_sq = v.distance_squared(projection);
-                if distance_sq < best_distance_sq && is_valid(projection) {
-                    best_distance_sq = distance_sq;
-                    best_projection = projection;
-                }
-            }
-        }
-
-        // Case 2b: Edge projections (two-plane active set)
-        // TODO: Can we optimize this from O(n^3) to O(n^2)?
-        #[cfg(feature = "3d")]
-        {
-            let n = normals.len();
-            for i in 0..n {
-                let ni = normals[i].adjust_precision();
-                for nj in normals
-                    .iter()
-                    .take(n)
-                    .skip(i + 1)
-                    .map(|n| n.adjust_precision())
-                {
-                    // Compute edge direction e = ni x nj
-                    let e = ni.cross(nj);
-                    let e_length_sq = e.length_squared();
-                    if e_length_sq < DOT_EPSILON {
-                        // Nearly parallel edge
-                        continue;
-                    }
-
-                    // Project v onto the line spanned by e:
-                    // projection = ((v · e) / |e|²) e
-                    let projection = e * (v.dot(e) / e_length_sq);
-
-                    // Check if better than previous best and valid
-                    let distance_sq = v.distance_squared(projection);
-                    if distance_sq < best_distance_sq && is_valid(projection) {
-                        best_distance_sq = distance_sq;
-                        best_projection = projection;
-                    }
-                }
-            }
-        }
-
-        // Case 3: If no candidate is found, the projection is at the apex (the origin)
-        if best_distance_sq.is_infinite() {
-            Vector::ZERO
-        } else {
-            best_projection
-        }
+        project_velocity(v, normals)
     }
 }
