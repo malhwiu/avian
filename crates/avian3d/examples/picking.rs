@@ -85,7 +85,7 @@ fn setup_scene(
                 MeshMaterial3d(white_matl.clone()),
                 RigidBody::Kinematic,
                 collider,
-                AngularVelocity(Vector::new(0.0, 0.5, 0.0)),
+                Velocity::from_angular(Vector::new(0.0, 0.5, 0.0)),
                 Transform::from_xyz(
                     -SHAPES_X_EXTENT / 2. + i as f32 / (num_shapes - 1) as f32 * SHAPES_X_EXTENT,
                     2.0,

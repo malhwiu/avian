@@ -704,7 +704,7 @@ impl ReadRigidBodyForcesInternal for ForcesReadOnlyItem<'_, '_> {
     }
     #[inline]
     fn vel(&self) -> &Velocity {
-        &self.velocity
+        self.velocity
     }
     #[inline]
     fn global_center_of_mass(&self) -> Vector {
