@@ -365,7 +365,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
 
     /// Applies a linear impulse at the center of mass in world space. The unit is typically N⋅s or kg⋅m/s.
     ///
-    /// The impulse modifies the [`LinearVelocity`] of the body immediately.
+    /// The impulse modifies the [`Velocity::linear`] of the body immediately.
     ///
     /// By default, a non-zero impulse will wake up the body if it is sleeping. This can be prevented
     /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
@@ -384,7 +384,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
     ///
     /// If the point is not at the center of mass, the impulse will also generate an angular impulse.
     ///
-    /// The impulse modifies the [`LinearVelocity`] and [`AngularVelocity`] of the body immediately.
+    /// The impulse modifies the [`Velocity`] of the body immediately.
     ///
     /// By default, a non-zero impulse will wake up the body if it is sleeping. This can be prevented
     /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
@@ -409,7 +409,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
 
     /// Applies a linear impulse in local space. The unit is typically N⋅s or kg⋅m/s.
     ///
-    /// The impulse modifies the [`LinearVelocity`] of the body immediately.
+    /// The impulse modifies the [`Velocity::linear`] of the body immediately.
     ///
     /// By default, a non-zero impulse will wake up the body if it is sleeping. This can be prevented
     /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
@@ -427,7 +427,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
 
     /// Applies an angular impulse in world space. The unit is typically N⋅m⋅s or kg⋅m²/s.
     ///
-    /// The impulse modifies the [`AngularVelocity`] of the body immediately.
+    /// The impulse modifies the [`Velocity::angular`] of the body immediately.
     ///
     /// By default, a non-zero impulse will wake up the body if it is sleeping. This can be prevented
     /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].
@@ -442,7 +442,7 @@ pub trait WriteRigidBodyForces: ReadRigidBodyForces + WriteRigidBodyForcesIntern
 
     /// Applies an angular impulse in local space. The unit is typically N⋅m⋅s or kg⋅m²/s.
     ///
-    /// The impulse modifies the [`AngularVelocity`] of the body immediately.
+    /// The impulse modifies the [`Velocity::angular`] of the body immediately.
     ///
     /// By default, a non-zero impulse will wake up the body if it is sleeping. This can be prevented
     /// by first calling [`ForcesItem::non_waking`] to get a [`NonWakingForcesItem`].

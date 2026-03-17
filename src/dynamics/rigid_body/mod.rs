@@ -84,8 +84,7 @@ use derive_more::From;
 /// to teleporting the body, which can result in unexpected behavior since the body can move
 /// inside walls.
 ///
-/// You can instead change the velocity of a dynamic or kinematic body with the [`LinearVelocity`]
-/// and [`AngularVelocity`] components:
+/// You can instead change the velocity of a dynamic or kinematic body with the [`Velocity`] component:
 ///
 /// ```
 #[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
@@ -94,19 +93,16 @@ use derive_more::From;
 ///
 /// # #[cfg(feature = "f32")]
 /// fn accelerate_bodies(
-///     mut query: Query<(&mut LinearVelocity, &mut AngularVelocity)>,
+///     mut query: Query<&mut Velocity>,
 ///     time: Res<Time>,
 /// ) {
 ///     let delta_secs = time.delta_secs();
-///     for (mut linear_velocity, mut angular_velocity) in &mut query {
-///         linear_velocity.x += 2.0 * delta_secs;
-#[cfg_attr(
-    feature = "2d",
-    doc = "        angular_velocity.0 += 0.5 * delta_secs;"
-)]
+///     for mut velocity in &mut query {
+///         velocity.linear.x += 2.0 * delta_secs;
+#[cfg_attr(feature = "2d", doc = "        velocity.angular += 0.5 * delta_secs;")]
 #[cfg_attr(
     feature = "3d",
-    doc = "        angular_velocity.z += 0.5 * delta_secs;"
+    doc = "        velocity.angular.z += 0.5 * delta_secs;"
 )]
 ///     }
 /// }
@@ -439,7 +435,7 @@ impl Velocity {
     }
 }
 
-/// The maximum linear speed of a [rigid body](RigidBody), clamping the [`LinearVelocity`],
+/// The maximum linear speed of a [rigid body](RigidBody), clamping the [`Velocity::linear`],
 /// typically in meters per second.
 ///
 /// This can be useful for limiting how fast bodies can move, and can help control behavior and prevent instability.
@@ -469,7 +465,7 @@ impl Default for MaxLinearSpeed {
     }
 }
 
-/// The maximum angular speed of a [rigid body](RigidBody), clamping the [`AngularVelocity`],
+/// The maximum angular speed of a [rigid body](RigidBody), clamping the [`Velocity::angular`],
 /// in radians per second.
 ///
 /// This can be useful for limiting how fast bodies can rotate, and can help control behavior and prevent instability.
@@ -553,7 +549,7 @@ impl Default for GravityScale {
 pub struct LinearDamping(pub Scalar);
 
 /// Automatically slows down a dynamic [rigid body](RigidBody), decreasing its
-/// [angular velocity](AngularVelocity) each frame. This can be used to simulate air resistance.
+/// [angular velocity](Velocity::angular) each frame. This can be used to simulate air resistance.
 ///
 /// The default angular damping coefficient is `0.0`, which corresponds to no damping.
 ///
