@@ -132,7 +132,7 @@
 //!     - [External forces, impulses, and acceleration](dynamics::rigid_body::forces)
 //! - [Gravity] and [gravity scale](GravityScale)
 //! - [Mass properties](dynamics::rigid_body::mass_properties)
-//! - [Linear](LinearDamping) and [angular](AngularDamping) velocity damping
+//! - [Damping]
 //! - [Lock translational and rotational axes](LockedAxes)
 //! - [Dominance]
 //! - [Continuous Collision Detection (CCD)](dynamics::ccd)

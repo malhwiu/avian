@@ -258,7 +258,7 @@ fn apply_movement_damping(
     let delta_secs = time.delta_secs_f64().adjust_precision();
 
     for (movement, mut velocity) in &mut query {
-        // Approximate exponential decay. We could use `LinearDamping` for this,
+        // Approximate exponential decay. We could use `Damping` for this,
         // but we don't want to dampen movement along the Y axis.
         velocity.linear.x *= 1.0 / (1.0 + delta_secs * movement.damping);
     }

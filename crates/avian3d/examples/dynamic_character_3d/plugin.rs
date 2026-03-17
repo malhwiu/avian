@@ -233,7 +233,7 @@ fn movement(
 /// Slows down movement in the XZ plane.
 fn apply_movement_damping(mut query: Query<(&MovementDampingFactor, &mut Velocity)>) {
     for (damping_factor, mut velocity) in &mut query {
-        // We could use `LinearDamping`, but we don't want to dampen movement along the Y axis
+        // We could use `Damping`, but we don't want to dampen movement along the Y axis
         velocity.linear.x *= damping_factor.0;
         velocity.linear.z *= damping_factor.0;
     }

@@ -226,7 +226,7 @@ fn apply_movement_damping(
     let delta_time = time.delta_secs_f64().adjust_precision();
 
     for (damping_factor, mut velocity) in &mut query {
-        // We could use `LinearDamping`, but we don't want to dampen movement along the Y axis
+        // We could use `Damping`, but we don't want to dampen movement along the Y axis
         velocity.linear.x *= 1.0 / (1.0 + damping_factor.0 * delta_time);
     }
 }

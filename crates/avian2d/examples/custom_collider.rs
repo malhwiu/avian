@@ -206,7 +206,7 @@ fn setup(
                 ),
                 RigidBody::Dynamic,
                 CircleCollider::new(particle_radius.adjust_precision()),
-                LinearDamping(0.4),
+                Damping::from_linear(0.4),
             ));
         }
     }
