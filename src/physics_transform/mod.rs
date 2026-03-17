@@ -19,7 +19,9 @@ use crate::{
 };
 use approx::AbsDiffEq;
 use bevy::{
-    ecs::{component::Tick, intern::Interned, schedule::ScheduleLabel, system::SystemChangeTick},
+    ecs::{
+        change_detection::Tick, intern::Interned, schedule::ScheduleLabel, system::SystemChangeTick,
+    },
     prelude::*,
     transform::systems::{mark_dirty_trees, propagate_parent_transforms, sync_simple_transforms},
 };
@@ -67,6 +69,9 @@ impl Default for PhysicsTransformPlugin {
 impl Plugin for PhysicsTransformPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PhysicsTransformConfig>();
+
+        // In case `TransformPlugin` is not added
+        app.init_resource::<StaticTransformOptimizations>();
 
         if app
             .world()
@@ -207,20 +212,22 @@ pub fn transform_to_position(
         let transform_translation = global_transform.translation.adjust_precision();
         let transform_rotation = Rotation::from(global_transform.rotation.adjust_precision());
 
-        let position_changed = is_changed_after_tick(
-            Ref::from(position.reborrow()),
-            last_physics_tick.0,
-            this_run,
-        );
+        let position_changed = !position.is_added()
+            && is_changed_after_tick(
+                Ref::from(position.reborrow()),
+                last_physics_tick.0,
+                this_run,
+            );
         if !position_changed && position.abs_diff_ne(&transform_translation, distance_tolerance) {
             position.0 = transform_translation;
         }
 
-        let rotation_changed = is_changed_after_tick(
-            Ref::from(rotation.reborrow()),
-            last_physics_tick.0,
-            this_run,
-        );
+        let rotation_changed = !rotation.is_added()
+            && is_changed_after_tick(
+                Ref::from(rotation.reborrow()),
+                last_physics_tick.0,
+                this_run,
+            );
         if !rotation_changed
             && rotation.angle_between(transform_rotation).abs() > rotation_tolerance
         {

@@ -14,7 +14,7 @@ use crate::prelude::*;
 
 use bevy::{
     ecs::{
-        component::Tick,
+        change_detection::Tick,
         intern::Interned,
         schedule::{ExecutorKind, LogLevel, ScheduleBuildSettings, ScheduleLabel},
         system::SystemChangeTick,
@@ -117,6 +117,12 @@ impl Plugin for PhysicsSchedulePlugin {
             PhysicsSchedule,
             update_last_physics_tick.after(PhysicsStepSystems::Last),
         );
+
+        #[cfg(debug_assertions)]
+        app.add_systems(
+            schedule,
+            assert_components_finite.in_set(PhysicsSystems::First),
+        );
     }
 }
 
@@ -190,7 +196,7 @@ pub enum PhysicsStepSystems {
     /// Responsible for finding pairs of entities with overlapping [`ColliderAabb`]
     /// and creating contact pairs for them in the [`ContactGraph`].
     ///
-    /// See [`BroadPhasePlugin`].
+    /// See the [`broad_phase`](crate::collision::broad_phase) module.
     BroadPhase,
     /// Responsible for updating contacts in the [`ContactGraph`] and processing contact state changes.
     ///
@@ -282,4 +288,30 @@ fn update_last_physics_tick(
     system_change_tick: SystemChangeTick,
 ) {
     last_physics_tick.0 = system_change_tick.this_run();
+}
+
+/// Debug system that checks for NaNs and infinities in Avian components and
+/// reports the last location they were written to.
+#[cfg(debug_assertions)]
+fn assert_components_finite(
+    pos_query: Query<(Entity, Ref<Position>)>,
+    vel_query: Query<(Entity, Ref<Velocity>)>,
+) {
+    macro_rules! assert_finite {
+        ($ent:expr, $val:ident, $ty:ty) => {
+            debug_assert!(
+                $val.is_finite(),
+                "NaN or infinity found in Avian component: type={} entity={} location='{}' (enable feature \"bevy/track_location\" if location is empty)",
+                stringify!($ty),
+                $ent,
+                $val.changed_by()
+            );
+        };
+    }
+    for (entity, position) in pos_query {
+        assert_finite!(entity, position, Position);
+    }
+    for (entity, velocity) in vel_query {
+        assert_finite!(entity, velocity, Velocity);
+    }
 }

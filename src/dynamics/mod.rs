@@ -75,17 +75,19 @@ pub mod prelude {
     #[expect(deprecated)]
     pub use super::{
         ccd::{CcdPlugin, SpeculativeMargin, SweepMode, SweptCcd},
-        integrator::{Gravity, IntegratorPlugin},
+        integrator::{
+            CustomPositionIntegration, CustomVelocityIntegration, Gravity, IntegratorPlugin,
+        },
         joints::{
-            AngleLimit, DistanceJoint, DistanceLimit, FixedJoint, JointAnchor, JointBasis,
-            JointCollisionDisabled, JointDamping, JointDisabled, JointForces, JointFrame,
-            JointPlugin, PrismaticJoint, RevoluteJoint,
+            AngleLimit, AngularMotor, DistanceJoint, DistanceLimit, FixedJoint, JointAnchor,
+            JointBasis, JointCollisionDisabled, JointDamping, JointDisabled, JointForces,
+            JointFrame, JointPlugin, LinearMotor, MotorModel, PrismaticJoint, RevoluteJoint,
         },
         rigid_body::{
             forces::{
                 ConstantAngularAcceleration, ConstantForce, ConstantLinearAcceleration,
                 ConstantLocalForce, ConstantLocalLinearAcceleration, ConstantTorque, ForcePlugin,
-                ForceSystems, Forces, RigidBodyForces,
+                ForceSystems, Forces, ReadRigidBodyForces, RigidBodyForces, WriteRigidBodyForces,
             },
             mass_properties::{
                 MassPropertiesExt, MassPropertyHelper, MassPropertyPlugin,
@@ -109,7 +111,6 @@ pub mod prelude {
             PhysicsLengthUnit, SolverPlugin, SolverPlugins,
             islands::{
                 IslandPlugin, IslandSleepingPlugin, SleepBody, SleepIslands, WakeBody, WakeIslands,
-                WakeUpBody,
             },
             schedule::{
                 SolverSchedulePlugin, SolverSet, SolverSystems, SubstepCount, SubstepSchedule,

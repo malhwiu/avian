@@ -43,20 +43,16 @@
 // https://github.com/erincatto/box2d/blob/df9787b59e4480135fbd73d275f007b5d931a83f/src/island.c#L57
 
 mod sleeping;
-
-#[expect(deprecated)]
-pub use sleeping::{
-    IslandSleepingPlugin, SleepBody, SleepIslands, WakeBody, WakeIslands, WakeUpBody,
-};
+pub use sleeping::{IslandSleepingPlugin, SleepBody, SleepIslands, WakeBody, WakeIslands};
 
 use bevy::{
     ecs::{entity_disabling::Disabled, lifecycle::HookContext, world::DeferredWorld},
     prelude::*,
 };
-use slab::Slab;
 
 use crate::{
     collision::contact_types::{ContactGraphInternal, ContactId},
+    data_structures::stable_vec::StableVec,
     dynamics::solver::{
         joint_graph::{JointGraph, JointId},
         solver_body::SolverBody,
@@ -417,7 +413,7 @@ impl PhysicsIsland {
 #[derive(Resource, Debug, Default, Clone)]
 pub struct PhysicsIslands {
     /// The list of islands.
-    islands: Slab<PhysicsIsland>,
+    islands: StableVec<PhysicsIsland>,
     /// The current island candidate for splitting.
     ///
     /// This is chosen based on which island with one or more constraints removed
@@ -444,7 +440,7 @@ impl PhysicsIslands {
         init(&mut island);
 
         // Add the island to the list.
-        IslandId(self.islands.insert(island) as u32)
+        IslandId(self.islands.push(island) as u32)
     }
 
     /// Removes a [`PhysicsIsland`] with the given ID. The island is assumed to be empty,
@@ -465,7 +461,7 @@ impl PhysicsIslands {
     /// Returns the next available island ID.
     #[inline]
     pub fn next_id(&self) -> IslandId {
-        IslandId(self.islands.vacant_key() as u32)
+        IslandId(self.islands.next_push_index() as u32)
     }
 
     /// Returns a reference to the [`PhysicsIsland`] with the given ID.
@@ -733,7 +729,8 @@ impl PhysicsIslands {
         Some(island)
     }
 
-    /// Removes a joint from the island manager. Returns a reference to the island that the joint was removed from.
+    /// Removes a joint from the island manager. Returns a reference to the island
+    /// that the joint was removed from, if the island still exists.
     ///
     /// This will unlink the joint from the island and update the island's joint list.
     /// The [`PhysicsIsland::constraints_removed`] counter is incremented.
@@ -751,7 +748,7 @@ impl PhysicsIslands {
         body_islands: &mut Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
         contact_graph: &ContactGraph,
         joint_graph: &mut JointGraph,
-    ) -> &PhysicsIsland {
+    ) -> Option<&PhysicsIsland> {
         let joint = joint_graph.get_mut_by_id(joint_id).unwrap();
 
         debug_assert!(joint.island.island_id != IslandId::PLACEHOLDER);
@@ -774,12 +771,7 @@ impl PhysicsIslands {
             next_island.prev = joint_island.prev;
         }
 
-        let island = self
-            .islands
-            .get_mut(joint_island.island_id.0 as usize)
-            .unwrap_or_else(|| {
-                panic!("Island {} does not exist", joint_island.island_id);
-            });
+        let island = self.islands.get_mut(joint_island.island_id.0 as usize)?;
 
         if island.head_joint == Some(joint_id) {
             // The joint is the head of the island.
@@ -805,7 +797,7 @@ impl PhysicsIslands {
             );
         }
 
-        island
+        Some(island)
     }
 
     /// Merges the [`PhysicsIsland`]s associated with the given bodies. Returns the ID of the resulting island.
@@ -846,7 +838,7 @@ impl PhysicsIslands {
         // Keep the bigger island to reduce cache misses.
         let [mut big, mut small] = self
             .islands
-            .get_disjoint_mut([island_id1.0 as usize, island_id2.0 as usize])
+            .get_disjoint_mut2(island_id1.0 as usize, island_id2.0 as usize)
             .unwrap();
         if big.body_count < small.body_count {
             core::mem::swap(&mut big, &mut small);
@@ -1265,7 +1257,7 @@ impl PhysicsIslands {
             }
 
             // Add the new island to the list.
-            self.islands.insert(island);
+            self.islands.push(island);
         }
     }
 }

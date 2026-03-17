@@ -11,12 +11,8 @@ use crate::{
     prelude::SubstepSchedule,
 };
 use crate::{
-    PhysicsSchedule, Position, RigidBody, RigidBodyActiveFilter, RigidBodyDisabled, Rotation,
-    Sleeping, SolverSystems, Vector,
     dynamics::solver::{SolverDiagnostics, solver_body::SolverBodyFlags},
-    prelude::{
-        ComputedAngularInertia, ComputedCenterOfMass, ComputedMass, Dominance, LockedAxes, Velocity,
-    },
+    prelude::*,
 };
 
 /// A plugin for managing solver bodies.
@@ -120,6 +116,11 @@ impl Plugin for SolverBodyPlugin {
                 .in_set(IntegrationSystems::Position)
                 .after(integrate_positions),
         );
+    }
+
+    fn finish(&self, app: &mut App) {
+        // Register timer and counter diagnostics for the solver.
+        app.register_physics_diagnostics::<SolverDiagnostics>();
     }
 }
 

@@ -2,7 +2,7 @@
 //!
 //! **Avian** is an ECS-driven 2D and 3D physics engine for the [Bevy game engine](https://bevyengine.org/).
 //!
-//! Check out the [GitHub repository](https://github.com/Jondolf/avian)
+//! Check out the [GitHub repository](https://github.com/avianphysics/avian)
 //! for more information about the design, read the [Getting Started](#getting-started)
 //! guide below to get up to speed, and take a look at the [Table of Contents](#table-of-contents)
 //! for an overview of the engine's features and their documentation.
@@ -17,19 +17,19 @@
 //! ## Add the Dependency
 //!
 //! First, add `avian2d` or `avian3d` to the dependencies in your `Cargo.toml`:
-//!  
+//!
 //! ```toml
 //! # For 2D applications:
 //! [dependencies]
-//! avian2d = "0.4"
+//! avian2d = "0.6"
 //!
 //! # For 3D applications:
 //! [dependencies]
-//! avian3d = "0.4"
+//! avian3d = "0.6"
 //!
 //! # If you want to use the most up-to-date version, you can follow the main branch:
 //! [dependencies]
-//! avian3d = { git = "https://github.com/Jondolf/avian", branch = "main" }
+//! avian3d = { git = "https://github.com/avianphysics/avian", branch = "main" }
 //! ```
 //!
 //! You can specify features by disabling the default features and manually adding
@@ -39,7 +39,7 @@
 //! [dependencies]
 //! # Add 3D Avian with double-precision floating point numbers.
 //! # `parry-f64` enables collision detection using Parry.
-//! avian3d = { version = "0.4", default-features = false, features = ["3d", "f64", "parry-f64", "xpbd_joints"] }
+//! avian3d = { version = "0.6", default-features = false, features = ["3d", "f64", "parry-f64", "xpbd_joints"] }
 //! ```
 //!
 //! ## Feature Flags
@@ -115,8 +115,8 @@
 //! }
 //! ```
 //!
-//! You can find lots of [usage examples](https://github.com/Jondolf/avian#more-examples)
-//! in the project's [repository](https://github.com/Jondolf/avian).
+//! You can find lots of [usage examples](https://github.com/avianphysics/avian#more-examples)
+//! in the project's [repository](https://github.com/avianphysics/avian).
 //!
 //! # Table of Contents
 //!
@@ -369,10 +369,12 @@
 //!
 //! ## Is there a character controller?
 //!
-//! Avian does not have a built-in character controller yet, so if you need one,
-//! you will need to implement it yourself. However, third party character controllers
-//! like [`bevy_tnua`](https://github.com/idanarye/bevy-tnua) support Avian, and [`bevy_mod_wanderlust`](https://github.com/PROMETHIA-27/bevy_mod_wanderlust)
-//! and others are also likely to get Avian support soon.
+//! Avian does not have a built-in character controller yet. However, it has a [`MoveAndSlide`]
+//! system parameter with utilities for implementing your own kinematic character controllers.
+//! See its documentation for more information.
+//!
+//! There are also some third party character controllers such as [`bevy_ahoy`](https://github.com/janhohenheim/bevy_ahoy)
+//! (kinematic) and [`bevy_tnua`](https://github.com/idanarye/bevy-tnua) (dynamic) that work with Avian.
 //!
 //! For custom character controllers, you can take a look at the
 #![cfg_attr(
@@ -386,13 +388,13 @@
 //!
 #![cfg_attr(
     feature = "2d",
-    doc = "[`dynamic_character_2d`]: https://github.com/Jondolf/avian/tree/main/crates/avian2d/examples/dynamic_character_2d
-[`kinematic_character_2d`]: https://github.com/Jondolf/avian/tree/main/crates/avian2d/examples/kinematic_character_2d"
+    doc = "[`dynamic_character_2d`]: https://github.com/avianphysics/avian/tree/main/crates/avian2d/examples/dynamic_character_2d
+[`kinematic_character_2d`]: https://github.com/avianphysics/avian/tree/main/crates/avian2d/examples/kinematic_character_2d"
 )]
 #![cfg_attr(
     feature = "3d",
-    doc = "[`dynamic_character_3d`]: https://github.com/Jondolf/avian/tree/main/crates/avian3d/examples/dynamic_character_3d
-[`kinematic_character_3d`]: https://github.com/Jondolf/avian/tree/main/crates/avian3d/examples/kinematic_character_3d"
+    doc = "[`dynamic_character_3d`]: https://github.com/avianphysics/avian/tree/main/crates/avian3d/examples/dynamic_character_3d
+[`kinematic_character_3d`]: https://github.com/avianphysics/avian/tree/main/crates/avian3d/examples/kinematic_character_3d"
 )]
 //!
 //! ## Why are there separate `Position` and `Rotation` components?
@@ -429,8 +431,8 @@
 //! Physics engines are very large and Avian is still young, so stability issues and bugs are to be expected.
 //!
 //! If you encounter issues, please consider first taking a look at the
-//! [issues on GitHub](https://github.com/Jondolf/avian/issues) and
-//! [open a new issue](https://github.com/Jondolf/avian/issues/new) if there already isn't one regarding your problem.
+//! [issues on GitHub](https://github.com/avianphysics/avian/issues) and
+//! [open a new issue](https://github.com/avianphysics/avian/issues/new) if there already isn't one regarding your problem.
 //!
 //! You can also come and say hello on the [Bevy Discord server](https://discord.com/invite/gMUk5Ph).
 //! There, you can find an Avian Physics topic on the `#ecosystem-crates` channel where you can ask questions.
@@ -439,9 +441,9 @@
 //!
 //! Avian is free and open source. All code in the Avian repository is dual-licensed under either:
 //!
-//! - MIT License ([LICENSE-MIT](https://github.com/Jondolf/avian/blob/main/LICENSE-MIT)
+//! - MIT License ([LICENSE-MIT](https://github.com/avianphysics/avian/blob/main/LICENSE-MIT)
 //! or <http://opensource.org/licenses/MIT>)
-//! - Apache License, Version 2.0 ([LICENSE-APACHE](https://github.com/Jondolf/avian/blob/main/LICENSE-APACHE)
+//! - Apache License, Version 2.0 ([LICENSE-APACHE](https://github.com/avianphysics/avian/blob/main/LICENSE-APACHE)
 //! or <http://www.apache.org/licenses/LICENSE-2.0>)
 //!
 //! at your option.
@@ -502,6 +504,12 @@ pub extern crate parry3d as parry;
 #[cfg(all(feature = "3d", feature = "parry-f64"))]
 pub extern crate parry3d_f64 as parry;
 
+#[cfg(all(
+    feature = "default-collider",
+    any(feature = "parry-f32", feature = "parry-f64")
+))]
+pub mod character_controller;
+pub mod collider_tree;
 pub mod collision;
 #[cfg(feature = "debug-plugin")]
 pub mod debug_render;
@@ -537,6 +545,7 @@ pub mod prelude {
     #[expect(deprecated)]
     pub use crate::{
         PhysicsPlugins,
+        collider_tree::{ColliderTreeOptimization, ColliderTreePlugin, TreeOptimizationMode},
         collision::prelude::*,
         dynamics::{self, ccd::SpeculativeMargin, prelude::*},
         interpolation::*,
@@ -547,6 +556,12 @@ pub mod prelude {
         },
         spatial_query::{self, *},
     };
+
+    #[cfg(all(
+        feature = "default-collider",
+        any(feature = "parry-f32", feature = "parry-f64")
+    ))]
+    pub use crate::character_controller::prelude::*;
     pub(crate) use crate::{
         diagnostics::AppDiagnosticsExt,
         math::*,
@@ -585,7 +600,9 @@ use prelude::*;
     all(feature = "collider-from-mesh", feature = "default-collider"),
     doc = "| [`ColliderCachePlugin`]           | Caches colliders created from meshes. Requires `collider-from-mesh` and `default-collider` features.                                                       |"
 )]
-/// | [`BroadPhasePlugin`]              | Finds pairs of entities with overlapping [AABBs](ColliderAabb) to reduce the number of potential contacts for the [narrow phase](collision::narrow_phase). |
+/// | [`ColliderTreePlugin`]            | Manages [`ColliderTrees`] for broad phase collision detection and spatial queries.                                                                         |
+/// | [`BroadPhaseCorePlugin`]          | The core [broad phase] plugin that sets up the required resources, system sets, and diagnostics.                                                           |
+/// | [`BvhBroadPhasePlugin`]           | A [broad phase] plugin that uses a [Bounding Volume Hierarchy (BVH)][BVH] to efficiently find pairs of colliders with overlapping AABBs.                   |
 /// | [`NarrowPhasePlugin`]             | Manages contacts and generates contact constraints.                                                                                                        |
 /// | [`SolverPlugins`]                 | A plugin group for the physics solver's plugins. See the plugin group's documentation for more information.                                                |
 /// | [`JointPlugin`]                   | A plugin for managing and initializing [joints](dynamics::joints). Does *not* include the actual joint solver.                                             |
@@ -604,6 +621,9 @@ use prelude::*;
 /// | [`PhysicsDiagnosticsPlugin`]      | Writes [physics diagnostics](diagnostics) to the [`DiagnosticsStore`] (only with `bevy_diagnostic` feature enabled).                                       |
 /// | [`PhysicsDiagnosticsUiPlugin`]    | Displays [physics diagnostics](diagnostics) with a debug UI overlay (only with `diagnostic_ui` feature enabled).                                           |
 ///
+/// [`ColliderTrees`]: collider_tree::ColliderTrees
+/// [broad phase]: collision::broad_phase
+/// [BVH]: https://en.wikipedia.org/wiki/Bounding_volume_hierarchy
 /// [`DiagnosticsStore`]: bevy::diagnostic::DiagnosticsStore
 ///
 /// Refer to the documentation of the plugins for more information about their responsibilities and implementations.
@@ -657,70 +677,6 @@ use prelude::*;
 ///         .run();
 /// }
 /// ```
-///
-/// # Custom Plugins
-///
-/// First, create a new plugin. If you want to run your systems in the engine's schedules, get either the [`PhysicsSchedule`]
-/// or the [`SubstepSchedule`]. Then you can add your systems to that schedule and control system ordering with system sets like
-/// [`PhysicsStepSystems`], [`SolverSystems`], or [`SubstepSolverSystems`](dynamics::solver::schedule::SubstepSolverSystems).
-///
-/// Here we will create a custom broad phase plugin that will replace the default [`BroadPhasePlugin`]:
-///
-/// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
-/// use bevy::prelude::*;
-///
-/// pub struct CustomBroadPhasePlugin;
-///
-/// impl Plugin for CustomBroadPhasePlugin {
-///     fn build(&self, app: &mut App) {
-///         // Make sure the PhysicsSchedule is available
-///         let physics_schedule = app
-///             .get_schedule_mut(PhysicsSchedule)
-///             .expect("add PhysicsSchedule first");
-///
-///         // Add the system into the broad phase system set
-///         physics_schedule.add_systems(collect_collision_pairs.in_set(PhysicsStepSystems::BroadPhase));
-///     }
-/// }
-///
-/// fn collect_collision_pairs() {
-///     // Implementation goes here
-/// }
-/// ```
-///
-/// Next, when creating your app, simply disable the default [`BroadPhasePlugin`] and add your custom plugin:
-///
-/// ```no_run
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
-/// use bevy::prelude::*;
-///
-/// # struct CustomBroadPhasePlugin;
-/// # impl Plugin for CustomBroadPhasePlugin {
-/// #     fn build(&self, app: &mut App) {}
-/// # }
-/// #
-/// fn main() {
-///     let mut app = App::new();
-///
-///     app.add_plugins(DefaultPlugins);
-///
-///     // Add PhysicsPlugins and replace default broad phase with our custom broad phase
-///     app.add_plugins(
-///         PhysicsPlugins::default()
-///             .build()
-///             .disable::<BroadPhasePlugin>()
-///             .add(CustomBroadPhasePlugin),
-///     );
-///
-///     app.run();
-/// }
-/// ```
-///
-/// You can find a full working example
-/// [here](https://github.com/Jondolf/avian/blob/main/crates/avian3d/examples/custom_broad_phase.rs).
 pub struct PhysicsPlugins {
     schedule: Interned<dyn ScheduleLabel>,
     length_unit: Scalar,
@@ -815,13 +771,15 @@ impl PluginGroup for PhysicsPlugins {
         ))]
         let builder = builder
             .add(ColliderBackendPlugin::<Collider>::new(self.schedule))
+            .add(ColliderTreePlugin::<Collider>::default())
             .add(NarrowPhasePlugin::<Collider>::default());
 
         // Add solver plugins.
         let builder = builder.add_group(SolverPlugins::new_with_length_unit(self.length_unit));
 
         builder
-            .add(BroadPhasePlugin::<()>::default())
+            .add(BroadPhaseCorePlugin)
+            .add(BvhBroadPhasePlugin::<()>::default())
             .add(JointPlugin)
             .add(SpatialQueryPlugin)
             .add(PhysicsTransformPlugin::new(self.schedule))
@@ -877,8 +835,8 @@ where
         let builder = self
             .plugins
             .build()
-            .disable::<BroadPhasePlugin>()
-            .add(BroadPhasePlugin::<H>::default());
+            .disable::<BvhBroadPhasePlugin>()
+            .add(BvhBroadPhasePlugin::<H>::default());
 
         #[cfg(all(
             feature = "default-collider",

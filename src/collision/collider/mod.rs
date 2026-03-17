@@ -438,7 +438,7 @@ pub struct Sensor;
 pub struct ColliderAabb {
     /// The minimum point of the AABB.
     pub min: Vector,
-    /// The maximum point of thr AABB.
+    /// The maximum point of the AABB.
     pub max: Vector,
 }
 
@@ -476,8 +476,8 @@ impl ColliderAabb {
     pub fn from_shape(shape: &crate::parry::shape::SharedShape) -> Self {
         let aabb = shape.compute_local_aabb();
         Self {
-            min: aabb.mins.into(),
-            max: aabb.maxs.into(),
+            min: aabb.mins,
+            max: aabb.maxs,
         }
     }
 
@@ -541,6 +541,69 @@ impl ColliderAabb {
         let y_overlaps = self.min.y <= other.max.y && self.max.y >= other.min.y;
         let z_overlaps = self.min.z <= other.max.z && self.max.z >= other.min.z;
         x_overlaps && y_overlaps && z_overlaps
+    }
+
+    /// Checks if `self` contains `other`.
+    #[inline(always)]
+    pub fn contains(&self, other: &Self) -> bool {
+        self.min.cmple(other.min).all() && self.max.cmpge(other.max).all()
+    }
+}
+
+impl From<ColliderAabb> for obvhs::aabb::Aabb {
+    fn from(value: ColliderAabb) -> Self {
+        Self {
+            #[cfg(feature = "2d")]
+            min: value.min.f32().extend(-0.5).to_array().into(),
+            #[cfg(feature = "2d")]
+            max: value.max.f32().extend(0.5).to_array().into(),
+            #[cfg(feature = "3d")]
+            min: value.min.f32().to_array().into(),
+            #[cfg(feature = "3d")]
+            max: value.max.f32().to_array().into(),
+        }
+    }
+}
+
+/// An Axis-Aligned Bounding Box that contains the [`ColliderAabb`] with an additional margin.
+///
+/// This is used to avoid updating the Bounding Volume Hierarchy acceleration structure
+/// every time a collider moves only a small amount.
+///
+/// The enlarged AABB is updated automatically whenever the [`ColliderAabb`]
+/// moves beyond the bounds of the current enlarged AABB.
+#[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, PartialEq)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
+#[reflect(Debug, Component, PartialEq)]
+pub struct EnlargedAabb(ColliderAabb);
+
+impl EnlargedAabb {
+    /// Creates a new [`EnlargedAabb`] from the given [`ColliderAabb`].
+    pub fn new(aabb: ColliderAabb) -> Self {
+        Self(aabb)
+    }
+
+    /// Updates the enlarged AABB with the given [`ColliderAabb`] and margin.
+    ///
+    /// If the AABB is already contained within the enlarged AABB, nothing happens.
+    ///
+    /// Returns `true` if the AABB was updated.
+    pub fn update(&mut self, aabb: &ColliderAabb, margin: Scalar) -> bool {
+        if self.contains(aabb) {
+            return false;
+        }
+
+        let margin = Vector::splat(margin);
+        self.0.min = aabb.min - margin;
+        self.0.max = aabb.max + margin;
+
+        true
+    }
+
+    /// Gets the [`ColliderAabb`] of the enlarged AABB.
+    pub fn get(&self) -> ColliderAabb {
+        self.0
     }
 }
 

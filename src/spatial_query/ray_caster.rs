@@ -7,11 +7,6 @@ use bevy::{
     },
     prelude::*,
 };
-#[cfg(all(
-    feature = "default-collider",
-    any(feature = "parry-f32", feature = "parry-f64")
-))]
-use parry::{partitioning::BvhNode, query::RayCast};
 
 /// A component used for [raycasting](spatial_query#raycasting).
 ///
@@ -251,7 +246,7 @@ impl RayCaster {
         &mut self,
         caster_entity: Entity,
         hits: &mut RayHits,
-        query_pipeline: &SpatialQueryPipeline,
+        spatial_query: &SpatialQuery,
     ) {
         if self.ignore_self {
             self.query_filter.excluded_entities.insert(caster_entity);
@@ -262,45 +257,26 @@ impl RayCaster {
         hits.clear();
 
         if self.max_hits == 1 {
-            query_pipeline.cast_ray(
+            let first_hit = spatial_query.cast_ray(
                 self.global_origin(),
                 self.global_direction(),
                 self.max_distance,
                 self.solid,
                 &self.query_filter,
             );
+
+            if let Some(hit) = first_hit {
+                hits.push(hit);
+            }
         } else {
-            let ray = parry::query::Ray::new(
-                self.global_origin().into(),
-                self.global_direction().adjust_precision().into(),
-            );
-
-            let found_hits = query_pipeline
-                .bvh
-                .leaves(|node: &BvhNode| node.aabb().intersects_local_ray(&ray, self.max_distance))
-                .filter_map(|leaf| {
-                    let proxy = query_pipeline.proxies.get(leaf as usize)?;
-
-                    if !self.query_filter.test(proxy.entity, proxy.layers) {
-                        return None;
-                    }
-
-                    let hit = proxy.collider.shape_scaled().cast_ray_and_get_normal(
-                        &proxy.isometry,
-                        &ray,
-                        self.max_distance,
-                        self.solid,
-                    )?;
-
-                    Some(RayHitData {
-                        entity: proxy.entity,
-                        distance: hit.time_of_impact,
-                        normal: hit.normal.into(),
-                    })
-                })
-                .take(self.max_hits as usize);
-
-            hits.extend(found_hits);
+            hits.extend(spatial_query.ray_hits(
+                self.global_origin(),
+                self.global_direction(),
+                self.max_distance,
+                self.max_hits,
+                self.solid,
+                &self.query_filter,
+            ));
         }
     }
 }
