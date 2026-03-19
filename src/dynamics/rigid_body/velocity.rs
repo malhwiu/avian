@@ -20,6 +20,7 @@ use bevy::prelude::*;
 #[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
 /// use bevy::prelude::*;
 ///
+/// # #[cfg(feature = "f32")]
 /// fn setup(mut commands: Commands) {
 ///     // Spawn a dynamic body with an initial velocity of `10.0` units per second towards +X,
 ///     // and an angular velocity of `1.5` radians per second about the Z axis.
@@ -33,6 +34,9 @@ use bevy::prelude::*;
 ///         },
 ///     ));
 /// }
+/// #
+/// # #[cfg(feature = "f64")]
+/// # fn main() {}
 /// ```
 ///
 /// The [`Velocity`] component also provides constructor methods for convenience:
@@ -96,8 +100,8 @@ use bevy::prelude::*;
 /// use bevy::prelude::*;
 ////
 /// # #[cfg(feature = "f32")]
-/// fn point_velocity(mut query: Query<&Velocity>) {
-///     for velocity in &mut query {
+/// fn point_velocity(query: Query<&Velocity>) {
+///     for velocity in &query {
 ///         // Compute the velocity at a point 1 unit to the right of the center of mass.
 #[cfg_attr(
     feature = "2d",
@@ -259,7 +263,6 @@ impl Velocity {
 #[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
 /// # use bevy::prelude::*;
 /// #
-/// # #[cfg(feature = "f32")]
 /// # const MAX_SPEEDS: [MaxSpeed; 3] = [
 /// // Max speed with linear and angular components
 /// MaxSpeed::new(100.0, 5.0),
@@ -270,9 +273,6 @@ impl Velocity {
 /// // Max speed with only the angular component
 /// MaxSpeed::from_angular(5.0) ,
 /// # ];
-/// #
-/// # #[cfg(feature = "f64")]
-/// # fn main() {}
 /// ```
 ///
 /// # Related Components
@@ -375,7 +375,6 @@ impl MaxSpeed {
 #[cfg_attr(feature = "3d", doc = "# use avian3d::prelude::*;")]
 /// # use bevy::prelude::*;
 /// #
-/// # #[cfg(feature = "f32")]
 /// # const DAMPINGS: [Damping; 3] = [
 /// // Damping with linear and angular components
 /// Damping::new(0.8, 1.6),
@@ -386,9 +385,6 @@ impl MaxSpeed {
 /// // Damping with only the angular component
 /// Damping::from_angular(1.6),
 /// # ];
-/// #
-/// # #[cfg(feature = "f64")]
-/// # fn main() {}
 /// ```
 ///
 /// # Related Components
