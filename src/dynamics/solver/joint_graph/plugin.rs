@@ -268,14 +268,14 @@ fn on_disable_joint_collision(
         (colliders2, body1)
     };
 
-    let contacts_to_remove: Vec<(ContactId, usize)> = colliders
+    let contacts_to_remove: Vec<ContactId> = colliders
         .iter()
         .flat_map(|collider| {
             contact_graph
                 .contact_edges_with(collider)
                 .filter_map(|edge| {
                     if edge.body1 == Some(other_body) || edge.body2 == Some(other_body) {
-                        Some((edge.id, edge.constraint_handles.len()))
+                        Some(edge.id)
                     } else {
                         None
                     }
@@ -283,11 +283,9 @@ fn on_disable_joint_collision(
         })
         .collect();
 
-    for (contact_id, num_constraints) in contacts_to_remove {
+    for contact_id in contacts_to_remove {
         // Remove the contact from the constraint graph.
-        for _ in 0..num_constraints {
-            constraint_graph.pop_manifold(&mut contact_graph.edges, contact_id, body1, body2);
-        }
+        constraint_graph.remove_contact(contact_id, body1, body2);
 
         // Remove the contact from the contact graph.
         let pair_key = PairKey::new(body1.index_u32(), body2.index_u32());

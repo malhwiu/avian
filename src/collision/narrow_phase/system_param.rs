@@ -187,14 +187,8 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                         let has_island = contact_edge.island.is_some();
 
                         // Remove the contact pair from the constraint graph.
-                        for _ in 0..contact_edge.constraint_handles.len() {
-                            self.constraint_graph.pop_manifold(
-                                &mut self.contact_graph.edges,
-                                contact_id,
-                                body1,
-                                body2,
-                            );
-                        }
+                        self.constraint_graph
+                            .remove_contact(contact_id, body1, body2);
 
                         // Unlink the contact pair from its island.
                         if has_island && let Some(islands) = &mut self.islands {
@@ -240,8 +234,7 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                     if contact_pair.generates_constraints() {
                         // Add the contact pair to the constraint graph.
                         for _ in contact_pair.manifolds.iter() {
-                            self.constraint_graph
-                                .push_manifold(contact_edge, contact_pair);
+                            self.constraint_graph.push_manifold(contact_pair);
                         }
 
                         // Link the contact pair to an island.
@@ -294,17 +287,11 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
 
                     // Remove the contact pair from the constraint graph.
                     if contact_pair.generates_constraints()
-                        && !contact_edge.constraint_handles.is_empty()
+                        && self.constraint_graph.manifold_count(contact_id) > 0
                         && let (Some(body1), Some(body2)) = (contact_pair.body1, contact_pair.body2)
                     {
-                        for _ in 0..contact_edge.constraint_handles.len() {
-                            self.constraint_graph.pop_manifold(
-                                &mut self.contact_graph.edges,
-                                contact_id,
-                                body1,
-                                body2,
-                            );
-                        }
+                        self.constraint_graph
+                            .remove_contact(contact_id, body1, body2);
 
                         // Unlink the contact pair from its island.
                         if let Some(islands) = &mut self.islands {
@@ -334,8 +321,7 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
 
                     // Add the contact pair to the constraint graph.
                     for _ in contact_pair.manifolds.iter() {
-                        self.constraint_graph
-                            .push_manifold(contact_edge, contact_pair);
+                        self.constraint_graph.push_manifold(contact_pair);
                     }
 
                     // Link the contact pair to an island.
@@ -361,8 +347,7 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                     // The contact pair is still touching, but the manifold count has increased.
                     // Add the new manifolds to the constraint graph.
                     for _ in 0..contact_pair.manifold_count_change {
-                        self.constraint_graph
-                            .push_manifold(contact_edge, contact_pair);
+                        self.constraint_graph.push_manifold(contact_pair);
                     }
                     contact_pair.manifold_count_change = 0;
                 } else if contact_pair.is_touching()
@@ -376,12 +361,8 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
 
                     if let (Some(body1), Some(body2)) = (contact_pair.body1, contact_pair.body2) {
                         for _ in 0..removal_count {
-                            self.constraint_graph.pop_manifold(
-                                &mut self.contact_graph.edges,
-                                contact_id,
-                                body1,
-                                body2,
-                            );
+                            self.constraint_graph
+                                .pop_manifold(contact_id, body1, body2);
                         }
                     }
                 }

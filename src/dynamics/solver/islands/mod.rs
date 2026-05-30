@@ -1125,13 +1125,9 @@ impl PhysicsIslands {
                             contact_graph
                                 .contact_edges_with(collider)
                                 .filter_map(|contact_edge| {
-                                    if contact_edge.island.is_some_and(|island| island.is_visited) {
-                                        // Only consider contacts that have not been visited yet.
-                                        return None;
-                                    }
-
-                                    if contact_edge.constraint_handles.is_empty() {
-                                        // Only consider touching contacts.
+                                    if contact_edge.island.is_none_or(|island| island.is_visited) {
+                                        // Only consider contacts that generate constraints
+                                        // and have not been visited yet.
                                         return None;
                                     }
 

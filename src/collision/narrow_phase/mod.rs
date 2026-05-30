@@ -448,9 +448,7 @@ fn remove_collider(
 
         // Remove the contact edge from the constraint graph.
         if let (Some(body1), Some(body2)) = (contact_edge.body1, contact_edge.body2) {
-            for _ in 0..contact_edge.constraint_handles.len() {
-                constraint_graph.pop_manifold(contact_graph, contact_id, body1, body2);
-            }
+            constraint_graph.remove_contact(contact_id, body1, body2);
         }
 
         // Unlink the contact pair from its island.

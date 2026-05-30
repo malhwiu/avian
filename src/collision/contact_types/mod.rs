@@ -6,13 +6,10 @@ mod system_param;
 
 pub use contact_graph::{ContactGraph, ContactGraphInternal};
 pub use feature_id::PackedFeatureId;
-use smallvec::SmallVec;
 pub use system_param::Collisions;
 
 use crate::{
-    data_structures::graph::EdgeIndex,
-    dynamics::solver::{constraint_graph::ContactConstraintHandle, islands::IslandNode},
-    prelude::*,
+    data_structures::graph::EdgeIndex, dynamics::solver::islands::IslandNode, prelude::*,
 };
 use bevy::prelude::*;
 
@@ -70,14 +67,6 @@ pub struct ContactEdge {
     /// The index of the [`ContactPair`] in the [`ContactGraph`].
     pub pair_index: usize,
 
-    /// The handles to the constraints associated with this contact edge.
-    #[cfg(feature = "2d")]
-    pub constraint_handles: SmallVec<[ContactConstraintHandle; 2]>,
-
-    /// The handles to the constraints associated with this contact edge.
-    #[cfg(feature = "3d")]
-    pub constraint_handles: SmallVec<[ContactConstraintHandle; 4]>,
-
     /// The [`IslandNode`] associated with this contact edge.
     pub island: Option<IslandNode<ContactId>>,
 
@@ -97,7 +86,6 @@ impl ContactEdge {
             body1: None,
             body2: None,
             pair_index: 0,
-            constraint_handles: SmallVec::new(),
             island: None,
             flags: ContactEdgeFlags::empty(),
         }

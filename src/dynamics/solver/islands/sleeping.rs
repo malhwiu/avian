@@ -388,32 +388,21 @@ impl Command for SleepIslands {
                         // Transfer the contact pairs to the sleeping set, and remove the body from the constraint graph.
                         if let Some(colliders) = colliders {
                             for collider in colliders {
-                                contact_graph.sleep_entity_with(collider, |graph, contact_pair| {
+                                contact_graph.sleep_entity_with(collider, |_graph, contact_pair| {
                                     // Remove touching contacts from the constraint graph.
                                     if !contact_pair.is_touching()
                                         || !contact_pair.generates_constraints()
                                     {
                                         return;
                                     }
-                                    let contact_edge = graph
-                                    .get_edge_mut_by_id(contact_pair.contact_id)
-                                    .unwrap_or_else(|| {
-                                        panic!(
-                                            "Contact edge with id {:?} not found in contact graph.",
-                                            contact_pair.contact_id
-                                        )
-                                    });
                                     if let (Some(body1), Some(body2)) =
                                         (contact_pair.body1, contact_pair.body2)
                                     {
-                                        for _ in 0..contact_edge.constraint_handles.len() {
-                                            constraint_graph.pop_manifold(
-                                                &mut graph.edges,
-                                                contact_pair.contact_id,
-                                                body1,
-                                                body2,
-                                            );
-                                        }
+                                        constraint_graph.remove_contact(
+                                            contact_pair.contact_id,
+                                            body1,
+                                            body2,
+                                        );
                                     }
                                 });
                             }
@@ -499,23 +488,15 @@ impl Command for WakeIslands {
                         // Transfer the contact pairs to the awake set, and add touching contacts to the constraint graph.
                         if let Some(colliders) = colliders {
                             for collider in colliders {
-                                contact_graph.wake_entity_with(collider, |graph, contact_pair| {
+                                contact_graph.wake_entity_with(collider, |_graph, contact_pair| {
                                     // Add touching contacts to the constraint graph.
                                     if !contact_pair.is_touching()
                                         || !contact_pair.generates_constraints()
                                     {
                                         return;
                                     }
-                                    let contact_edge = graph
-                                    .get_edge_mut_by_id(contact_pair.contact_id)
-                                    .unwrap_or_else(|| {
-                                        panic!(
-                                            "Contact edge with id {:?} not found in contact graph.",
-                                            contact_pair.contact_id
-                                        )
-                                    });
                                     for _ in contact_pair.manifolds.iter() {
-                                        constraint_graph.push_manifold(contact_edge, contact_pair);
+                                        constraint_graph.push_manifold(contact_pair);
                                     }
                                 });
                             }
