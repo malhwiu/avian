@@ -444,16 +444,16 @@ fn remove_collider(
             colliding_entities.remove(&entity);
         }
 
-        let has_island = contact_edge.island.is_some();
-
         // Remove the contact edge from the constraint graph.
         if let (Some(body1), Some(body2)) = (contact_edge.body1, contact_edge.body2) {
             constraint_graph.remove_contact(contact_id, body1, body2);
         }
 
         // Unlink the contact pair from its island.
-        if has_island && let Some(ref mut islands) = islands {
-            islands.remove_contact(contact_id, body_islands, contact_graph, joint_graph);
+        if let Some(ref mut islands) = islands
+            && islands.contact_node(contact_id).is_some()
+        {
+            islands.remove_contact(contact_id, body_islands, joint_graph);
         }
     });
 }

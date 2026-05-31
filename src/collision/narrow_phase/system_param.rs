@@ -184,18 +184,17 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                     if contact_pair.generates_constraints()
                         && let (Some(body1), Some(body2)) = (contact_pair.body1, contact_pair.body2)
                     {
-                        let has_island = contact_edge.island.is_some();
-
                         // Remove the contact pair from the constraint graph.
                         self.constraint_graph
                             .remove_contact(contact_id, body1, body2);
 
                         // Unlink the contact pair from its island.
-                        if has_island && let Some(islands) = &mut self.islands {
+                        if let Some(islands) = &mut self.islands
+                            && islands.contact_node(contact_id).is_some()
+                        {
                             islands.remove_contact(
                                 contact_id,
                                 &mut self.body_islands,
-                                &mut self.contact_graph.edges,
                                 &self.joint_graph,
                             );
                         }
@@ -242,7 +241,7 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                             let island = islands.add_contact(
                                 contact_id,
                                 &mut self.body_islands,
-                                &mut self.contact_graph,
+                                &self.contact_graph,
                                 &mut self.joint_graph,
                             );
 
@@ -298,7 +297,6 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                             let island = islands.remove_contact(
                                 contact_id,
                                 &mut self.body_islands,
-                                &mut self.contact_graph.edges,
                                 &self.joint_graph,
                             );
 
@@ -329,7 +327,7 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                         let island = islands.add_contact(
                             contact_id,
                             &mut self.body_islands,
-                            &mut self.contact_graph,
+                            &self.contact_graph,
                             &mut self.joint_graph,
                         );
 

@@ -126,7 +126,6 @@ fn add_joint_to_graph<
     query: Query<(&T, Has<JointCollisionDisabled>), F>,
     mut commands: Commands,
     mut body_islands: Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
-    mut contact_graph: ResMut<ContactGraph>,
     mut joint_graph: ResMut<JointGraph>,
     mut islands: Option<ResMut<PhysicsIslands>>,
 ) {
@@ -144,12 +143,7 @@ fn add_joint_to_graph<
 
     // Link the joint to an island.
     if let Some(islands) = &mut islands {
-        let island = islands.add_joint(
-            joint_id,
-            &mut body_islands,
-            &mut contact_graph,
-            &mut joint_graph,
-        );
+        let island = islands.add_joint(joint_id, &mut body_islands, &mut joint_graph);
 
         // Wake up the island if it was sleeping.
         if let Some(island) = island
@@ -164,7 +158,6 @@ fn remove_joint_from_graph<E: EntityEvent, B: Bundle>(
     trigger: On<E, B>,
     mut commands: Commands,
     mut body_islands: Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
-    contact_graph: ResMut<ContactGraph>,
     mut joint_graph: ResMut<JointGraph>,
     mut islands: Option<ResMut<PhysicsIslands>>,
 ) {
@@ -176,12 +169,7 @@ fn remove_joint_from_graph<E: EntityEvent, B: Bundle>(
 
     // Remove the joint from the island.
     if let Some(islands) = &mut islands
-        && let Some(island) = islands.remove_joint(
-            joint.id,
-            &mut body_islands,
-            &contact_graph,
-            &mut joint_graph,
-        )
+        && let Some(island) = islands.remove_joint(joint.id, &mut body_islands, &mut joint_graph)
     {
         // Wake up the island if it was sleeping.
         if island.is_sleeping {
@@ -299,7 +287,6 @@ fn on_change_joint_entities<T: Component + EntityConstraint<2>>(
     mut commands: Commands,
     mut body_islands: Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
     mut joint_graph: ResMut<JointGraph>,
-    mut contact_graph: ResMut<ContactGraph>,
     mut islands: Option<ResMut<PhysicsIslands>>,
 ) {
     let mut islands_to_wake: Vec<IslandId> = Vec::new();
@@ -313,12 +300,8 @@ fn on_change_joint_entities<T: Component + EntityConstraint<2>>(
         if body1 != old_edge.body1 || body2 != old_edge.body2 {
             // Remove the joint from the island.
             if let Some(islands) = &mut islands
-                && let Some(island) = islands.remove_joint(
-                    old_edge.id,
-                    &mut body_islands,
-                    &contact_graph,
-                    &mut joint_graph,
-                )
+                && let Some(island) =
+                    islands.remove_joint(old_edge.id, &mut body_islands, &mut joint_graph)
             {
                 // Wake up the island if it was sleeping.
                 if island.is_sleeping {
@@ -337,12 +320,7 @@ fn on_change_joint_entities<T: Component + EntityConstraint<2>>(
 
                 // Link the joint to an island.
                 if let Some(islands) = &mut islands {
-                    islands.add_joint(
-                        joint_id,
-                        &mut body_islands,
-                        &mut contact_graph,
-                        &mut joint_graph,
-                    );
+                    islands.add_joint(joint_id, &mut body_islands, &mut joint_graph);
                 }
             }
         }

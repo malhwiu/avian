@@ -51,7 +51,7 @@ use bevy::{
 };
 
 use crate::{
-    collision::contact_types::{ContactGraphInternal, ContactId},
+    collision::contact_types::ContactId,
     data_structures::stable_vec::StableVec,
     dynamics::solver::{
         joint_graph::{JointGraph, JointId},
@@ -158,7 +158,7 @@ fn split_island(
     mut islands: ResMut<PhysicsIslands>,
     mut body_islands: Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
     body_colliders: Query<&RigidBodyColliders>,
-    mut contact_graph: ResMut<ContactGraph>,
+    contact_graph: Res<ContactGraph>,
     mut joint_graph: ResMut<JointGraph>,
 ) {
     // Splitting is only done when bodies want to sleep.
@@ -167,7 +167,7 @@ fn split_island(
             island_id,
             &mut body_islands,
             &body_colliders,
-            &mut contact_graph,
+            &contact_graph,
             &mut joint_graph,
         );
     }
@@ -290,11 +290,11 @@ impl PhysicsIsland {
     pub fn validate(
         &self,
         body_islands: &Query<&BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
-        contact_graph: &ContactGraphInternal,
+        contact_nodes: &[Option<IslandNode<ContactId>>],
         joint_graph: &JointGraph,
     ) {
         self.validate_bodies(body_islands);
-        self.validate_contacts(contact_graph);
+        self.validate_contacts(contact_nodes);
         self.validate_joints(joint_graph);
     }
 
@@ -336,7 +336,7 @@ impl PhysicsIsland {
     }
 
     /// Validates the contact linked list.
-    pub fn validate_contacts(&self, contact_graph: &ContactGraphInternal) {
+    pub fn validate_contacts(&self, contact_nodes: &[Option<IslandNode<ContactId>>]) {
         if self.head_contact.is_none() {
             assert!(self.tail_contact.is_none());
             assert_eq!(self.contact_count, 0);
@@ -354,10 +354,9 @@ impl PhysicsIsland {
         let mut contact_id = self.head_contact;
 
         while let Some(id) = contact_id {
-            let contact = contact_graph.edge_weight(id.into()).unwrap();
-            let contact_island = contact
-                .island
-                .as_ref()
+            let contact_island = contact_nodes
+                .get(id.0 as usize)
+                .and_then(|node| node.as_ref())
                 .unwrap_or_else(|| panic!("Contact {id:?} has no island"));
             assert_eq!(contact_island.island_id, self.id);
 
@@ -414,6 +413,10 @@ impl PhysicsIsland {
 pub struct PhysicsIslands {
     /// The list of islands.
     islands: StableVec<PhysicsIsland>,
+    /// The island linked-list nodes for contacts, indexed by [`ContactId`].
+    ///
+    /// Contacts that are not part of any island have a `None` entry.
+    contact_nodes: Vec<Option<IslandNode<ContactId>>>,
     /// The current island candidate for splitting.
     ///
     /// This is chosen based on which island with one or more constraints removed
@@ -464,6 +467,22 @@ impl PhysicsIslands {
         IslandId(self.islands.next_push_index() as u32)
     }
 
+    /// Returns the [`IslandNode`] linking the given contact to its island,
+    /// or `None` if the contact is not part of any island.
+    #[inline]
+    pub fn contact_node(&self, contact_id: ContactId) -> Option<&IslandNode<ContactId>> {
+        self.contact_nodes
+            .get(contact_id.0 as usize)
+            .and_then(|node| node.as_ref())
+    }
+
+    /// Returns the slice of contact [`IslandNode`]s, indexed by [`ContactId`].
+    #[cfg(feature = "validate")]
+    #[inline]
+    pub(crate) fn contact_nodes(&self) -> &[Option<IslandNode<ContactId>>] {
+        &self.contact_nodes
+    }
+
     /// Returns a reference to the [`PhysicsIsland`] with the given ID.
     #[inline]
     pub fn get(&self, island_id: IslandId) -> Option<&PhysicsIsland> {
@@ -510,12 +529,12 @@ impl PhysicsIslands {
         &mut self,
         contact_id: ContactId,
         body_islands: &mut Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
-        contact_graph: &mut ContactGraph,
+        contact_graph: &ContactGraph,
         joint_graph: &mut JointGraph,
     ) -> Option<&PhysicsIsland> {
-        let contact = contact_graph.get_edge_mut_by_id(contact_id).unwrap();
+        let contact = contact_graph.get_edge_by_id(contact_id).unwrap();
 
-        debug_assert!(contact.island.is_none());
+        debug_assert!(self.contact_node(contact_id).is_none());
         debug_assert!(contact.is_touching());
 
         let (Some(body1), Some(body2)) = (contact.body1, contact.body2) else {
@@ -523,7 +542,13 @@ impl PhysicsIslands {
         };
 
         // Merge the islands.
-        let island_id = self.merge_islands(body1, body2, body_islands, contact_graph, joint_graph);
+        let island_id = self.merge_islands(body1, body2, body_islands, joint_graph);
+
+        // Ensure there is a slot for this contact's island node.
+        let contact_index = contact_id.0 as usize;
+        if contact_index >= self.contact_nodes.len() {
+            self.contact_nodes.resize_with(contact_index + 1, || None);
+        }
 
         // Link the contact to the island.
         let island = self
@@ -544,9 +569,7 @@ impl PhysicsIslands {
             // Link the new contact to the head of the island.
             contact_island.next = Some(head_contact_id);
 
-            let head_contact = contact_graph.get_edge_mut_by_id(head_contact_id).unwrap();
-            let head_contact_island = head_contact
-                .island
+            let head_contact_island = self.contact_nodes[head_contact_id.0 as usize]
                 .as_mut()
                 .unwrap_or_else(|| panic!("Head contact {head_contact_id:?} has no island"));
             head_contact_island.prev = Some(contact_id);
@@ -558,9 +581,7 @@ impl PhysicsIslands {
             island.tail_contact = island.head_contact;
         }
 
-        // TODO: Can we avoid this second lookup?
-        let contact = contact_graph.get_edge_mut_by_id(contact_id).unwrap();
-        contact.island = Some(contact_island);
+        self.contact_nodes[contact_index] = Some(contact_island);
 
         island.contact_count += 1;
 
@@ -569,7 +590,7 @@ impl PhysicsIslands {
             // Validate the island.
             island.validate(
                 &body_islands.as_readonly(),
-                &contact_graph.edges,
+                &self.contact_nodes,
                 joint_graph,
             );
         }
@@ -583,31 +604,29 @@ impl PhysicsIslands {
     /// The [`PhysicsIsland::constraints_removed`] counter is incremented.
     ///
     /// Called when a contact is destroyed or no longer touching.
-    #[expect(
-        unused_variables,
-        reason = "additional parameters are needed with the `validate` feature"
+    #[cfg_attr(
+        not(feature = "validate"),
+        expect(
+            unused_variables,
+            reason = "`body_islands` and `joint_graph` are only used with the `validate` feature"
+        )
     )]
     pub fn remove_contact(
         &mut self,
         contact_id: ContactId,
         body_islands: &mut Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
-        contact_graph: &mut ContactGraphInternal,
         joint_graph: &JointGraph,
     ) -> &PhysicsIsland {
-        let contact = contact_graph.edge_weight_mut(contact_id.into()).unwrap();
+        debug_assert!(self.contact_node(contact_id).is_some());
 
-        debug_assert!(contact.island.is_some());
-
-        // Remove the island from the contact edge.
-        let contact_island = contact.island.take().unwrap();
+        // Remove the island node from the contact.
+        let contact_island = self.contact_nodes[contact_id.0 as usize]
+            .take()
+            .expect("Contact has no island");
 
         // Remove the contact from the island.
         if let Some(prev_contact_id) = contact_island.prev {
-            let prev_contact = contact_graph
-                .edge_weight_mut(prev_contact_id.into())
-                .unwrap();
-            let prev_contact_island = prev_contact
-                .island
+            let prev_contact_island = self.contact_nodes[prev_contact_id.0 as usize]
                 .as_mut()
                 .expect("Previous contact has no island");
             debug_assert!(prev_contact_island.next == Some(contact_id));
@@ -615,11 +634,7 @@ impl PhysicsIslands {
         }
 
         if let Some(next_contact_id) = contact_island.next {
-            let next_contact = contact_graph
-                .edge_weight_mut(next_contact_id.into())
-                .unwrap();
-            let next_contact_island = next_contact
-                .island
+            let next_contact_island = self.contact_nodes[next_contact_id.0 as usize]
                 .as_mut()
                 .expect("Next contact has no island");
             debug_assert!(next_contact_island.prev == Some(contact_id));
@@ -650,7 +665,11 @@ impl PhysicsIslands {
         #[cfg(feature = "validate")]
         {
             // Validate the island.
-            island.validate(&body_islands.as_readonly(), contact_graph, joint_graph);
+            island.validate(
+                &body_islands.as_readonly(),
+                &self.contact_nodes,
+                joint_graph,
+            );
         }
 
         island
@@ -666,19 +685,12 @@ impl PhysicsIslands {
         &mut self,
         joint_id: JointId,
         body_islands: &mut Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
-        contact_graph: &mut ContactGraph,
         joint_graph: &mut JointGraph,
     ) -> Option<&PhysicsIsland> {
         let joint = joint_graph.get_mut_by_id(joint_id).unwrap();
 
         // Merge the islands.
-        let island_id = self.merge_islands(
-            joint.body1,
-            joint.body2,
-            body_islands,
-            contact_graph,
-            joint_graph,
-        );
+        let island_id = self.merge_islands(joint.body1, joint.body2, body_islands, joint_graph);
 
         // Link the joint to the island.
         let island = self
@@ -721,7 +733,7 @@ impl PhysicsIslands {
             // Validate the island.
             island.validate(
                 &body_islands.as_readonly(),
-                &contact_graph.edges,
+                &self.contact_nodes,
                 joint_graph,
             );
         }
@@ -738,15 +750,17 @@ impl PhysicsIslands {
     /// The joint should be removed from the [`JointGraph`] in concert with calling this method.
     ///
     /// Called when a joint is destroyed or no longer connected to the bodies.
-    #[expect(
-        unused_variables,
-        reason = "additional parameters are needed with the `validate` feature"
+    #[cfg_attr(
+        not(feature = "validate"),
+        expect(
+            unused_variables,
+            reason = "`body_islands` is only used with the `validate` feature"
+        )
     )]
     pub fn remove_joint(
         &mut self,
         joint_id: JointId,
         body_islands: &mut Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
-        contact_graph: &ContactGraph,
         joint_graph: &mut JointGraph,
     ) -> Option<&PhysicsIsland> {
         let joint = joint_graph.get_mut_by_id(joint_id).unwrap();
@@ -792,7 +806,7 @@ impl PhysicsIslands {
             // Validate the island.
             island.validate(
                 &body_islands.as_readonly(),
-                &contact_graph.edges,
+                &self.contact_nodes,
                 joint_graph,
             );
         }
@@ -812,7 +826,6 @@ impl PhysicsIslands {
         body1: Entity,
         body2: Entity,
         body_islands: &mut Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
-        contact_graph: &mut ContactGraph,
         joint_graph: &mut JointGraph,
     ) -> IslandId {
         let Ok(island_id1) = body_islands.get(body1).map(|island| island.island_id) else {
@@ -857,8 +870,9 @@ impl PhysicsIslands {
         // Contacts
         let mut contact_id = small.head_contact;
         while let Some(id) = contact_id {
-            let contact = contact_graph.get_edge_mut_by_id(id).unwrap();
-            let contact_island = contact.island.as_mut().expect("Contact has no island");
+            let contact_island = self.contact_nodes[id.0 as usize]
+                .as_mut()
+                .expect("Contact has no island");
             contact_island.island_id = big.id;
             contact_id = contact_island.next;
         }
@@ -904,18 +918,14 @@ impl PhysicsIslands {
             let head_contact_id = small.head_contact.expect("Island has no head contact");
 
             // Connect the tail of the big island to the head of the small island.
-            let tail_contact = contact_graph.get_edge_mut_by_id(tail_contact_id).unwrap();
-            let tail_contact_island = tail_contact
-                .island
+            let tail_contact_island = self.contact_nodes[tail_contact_id.0 as usize]
                 .as_mut()
                 .expect("Tail contact has no island");
             debug_assert!(tail_contact_island.next.is_none());
             tail_contact_island.next = small.head_contact;
 
             // Connect the head of the small island to the tail of the big island.
-            let head_contact = contact_graph.get_edge_mut_by_id(head_contact_id).unwrap();
-            let head_contact_island = head_contact
-                .island
+            let head_contact_island = self.contact_nodes[head_contact_id.0 as usize]
                 .as_mut()
                 .expect("Head contact has no island");
             debug_assert!(head_contact_island.prev.is_none());
@@ -972,7 +982,7 @@ impl PhysicsIslands {
             // Validate the big island.
             big.validate(
                 &body_islands.as_readonly(),
-                &contact_graph.edges,
+                &self.contact_nodes,
                 joint_graph,
             );
         }
@@ -993,7 +1003,7 @@ impl PhysicsIslands {
         island_id: IslandId,
         body_islands: &mut Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
         body_colliders: &Query<&RigidBodyColliders>,
-        contact_graph: &mut ContactGraph,
+        contact_graph: &ContactGraph,
         joint_graph: &mut JointGraph,
     ) {
         let island = self.islands.get_mut(island_id.0 as usize).unwrap();
@@ -1013,7 +1023,7 @@ impl PhysicsIslands {
             // Validate the island before splitting.
             island.validate(
                 &body_islands.as_readonly(),
-                &contact_graph.edges,
+                &self.contact_nodes,
                 joint_graph,
             );
         }
@@ -1043,9 +1053,7 @@ impl PhysicsIslands {
         // Clear visited flags for contacts.
         let mut next_contact = island.head_contact;
         while let Some(contact_id) = next_contact {
-            let contact = contact_graph.get_edge_mut_by_id(contact_id).unwrap();
-            let contact_island = contact
-                .island
+            let contact_island = self.contact_nodes[contact_id.0 as usize]
                 .as_mut()
                 .unwrap_or_else(|| panic!("Contact {contact_id:?} has no island"));
 
@@ -1125,7 +1133,10 @@ impl PhysicsIslands {
                             contact_graph
                                 .contact_edges_with(collider)
                                 .filter_map(|contact_edge| {
-                                    if contact_edge.island.is_none_or(|island| island.is_visited) {
+                                    if self
+                                        .contact_node(contact_edge.id)
+                                        .is_none_or(|node| node.is_visited)
+                                    {
                                         // Only consider contacts that generate constraints
                                         // and have not been visited yet.
                                         return None;
@@ -1159,18 +1170,15 @@ impl PhysicsIslands {
 
                     // Add the contact to the new island.
                     if let Some(tail_contact_id) = island.tail_contact {
-                        let tail_contact =
-                            contact_graph.get_edge_mut_by_id(tail_contact_id).unwrap();
-                        let tail_contact_island =
-                            tail_contact.island.as_mut().unwrap_or_else(|| {
+                        let tail_contact_island = self.contact_nodes[tail_contact_id.0 as usize]
+                            .as_mut()
+                            .unwrap_or_else(|| {
                                 panic!("Tail contact {tail_contact_id:?} has no island")
                             });
                         tail_contact_island.next = Some(contact_id);
                     }
 
-                    let contact_edge = contact_graph.get_edge_mut_by_id(contact_id).unwrap();
-                    let contact_island = contact_edge
-                        .island
+                    let contact_island = self.contact_nodes[contact_id.0 as usize]
                         .as_mut()
                         .unwrap_or_else(|| panic!("Contact {contact_id:?} has no island"));
 
@@ -1247,7 +1255,7 @@ impl PhysicsIslands {
                 // Validate the new island.
                 island.validate(
                     &body_islands.as_readonly(),
-                    &contact_graph.edges,
+                    &self.contact_nodes,
                     joint_graph,
                 );
             }
@@ -1392,12 +1400,11 @@ impl BodyIslandNode {
                         Or<(With<Disabled>, Without<Disabled>)>,
                     >,
                           islands: Res<PhysicsIslands>,
-                          contact_graph: Res<ContactGraph>,
                           joint_graph: Res<JointGraph>| {
                         let island = islands
                             .get(island_id)
                             .unwrap_or_else(|| panic!("Island {island_id} does not exist"));
-                        island.validate(&bodies, &contact_graph.edges, &joint_graph);
+                        island.validate(&bodies, islands.contact_nodes(), &joint_graph);
                     },
                 );
             });
