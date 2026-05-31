@@ -388,23 +388,26 @@ impl Command for SleepIslands {
                         // Transfer the contact pairs to the sleeping set, and remove the body from the constraint graph.
                         if let Some(colliders) = colliders {
                             for collider in colliders {
-                                contact_graph.sleep_entity_with(collider, |_graph, contact_pair| {
-                                    // Remove touching contacts from the constraint graph.
-                                    if !contact_pair.is_touching()
-                                        || !contact_pair.generates_constraints()
-                                    {
-                                        return;
-                                    }
-                                    if let (Some(body1), Some(body2)) =
-                                        (contact_pair.body1, contact_pair.body2)
-                                    {
-                                        constraint_graph.remove_contact(
-                                            contact_pair.contact_id,
-                                            body1,
-                                            body2,
-                                        );
-                                    }
-                                });
+                                contact_graph.sleep_entity_with(
+                                    collider,
+                                    |_graph, contact_pair| {
+                                        // Remove touching contacts from the constraint graph.
+                                        if !contact_pair.is_touching()
+                                            || !contact_pair.generates_constraints()
+                                        {
+                                            return;
+                                        }
+                                        if let (Some(body1), Some(body2)) =
+                                            (contact_pair.body1, contact_pair.body2)
+                                        {
+                                            constraint_graph.remove_contact(
+                                                contact_pair.contact_id,
+                                                body1,
+                                                body2,
+                                            );
+                                        }
+                                    },
+                                );
                             }
                         }
 
