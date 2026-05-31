@@ -151,6 +151,8 @@ pub struct ConstraintGraph {
     ///
     /// Entries persist as empty lists once allocated, since [`ContactId`]s are reused by the
     /// [`ContactGraph`].
+    ///
+    /// [`ContactGraph`]: crate::collision::contact_types::ContactGraph
     #[reflect(ignore)]
     contact_handles: Vec<ManifoldConstraintHandles>,
 }

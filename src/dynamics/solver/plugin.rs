@@ -334,8 +334,14 @@ struct CachedContactStatusChangeSystemState(
 /// # Example
 ///
 /// ```
-#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
-#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+#[cfg_attr(
+    feature = "2d",
+    doc = "use avian2d::{dynamics::solver::FlushContactStatusChangeQueue, prelude::*};"
+)]
+#[cfg_attr(
+    feature = "3d",
+    doc = "use avian3d::{dynamics::solver::FlushContactStatusChangeQueue, prelude::*};"
+)]
 /// use bevy::prelude::*;
 ///
 /// fn clear_scene(mut commands: Commands, bodies: Query<Entity, With<RigidBody>>) {

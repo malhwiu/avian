@@ -26,10 +26,7 @@ pub use system_param::{ContactStatusChange, ContactStatusChangeQueue, NarrowPhas
 use core::marker::PhantomData;
 
 use crate::{
-    dynamics::solver::{
-        ContactConstraints, constraint_graph::ConstraintGraph, islands::BodyIslandNode,
-        joint_graph::JointGraph,
-    },
+    dynamics::solver::{ContactConstraints, islands::BodyIslandNode, joint_graph::JointGraph},
     prelude::*,
 };
 use bevy::{
@@ -106,7 +103,6 @@ where
 
         app.init_resource::<NarrowPhaseConfig>()
             .init_resource::<ContactGraph>()
-            .init_resource::<ConstraintGraph>()
             .init_resource::<JointGraph>()
             .init_resource::<ContactStatusBits>()
             .init_resource::<ContactStatusChangeQueue>()
@@ -453,8 +449,7 @@ fn remove_collider(
     });
 }
 
-/// Removes contacts from the [`ConstraintGraph`], [`ContactGraph`], and [`PhysicsIslands`]
-/// when both bodies in a contact pair become static.
+/// Removes contacts from the [`ContactGraph`] when a body is removed.
 fn remove_body_on<E: EntityEvent, B: Bundle>(
     trigger: On<E, B>,
     body_collider_query: Query<&RigidBodyColliders>,
