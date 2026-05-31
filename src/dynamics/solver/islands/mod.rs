@@ -461,6 +461,24 @@ impl PhysicsIslands {
         self.islands.remove(island_id.0 as usize)
     }
 
+    /// Removes the [`PhysicsIsland`] with the given ID if it exists and is completely empty,
+    /// meaning it has no bodies, contacts, or joints.
+    ///
+    /// This is used to clean up islands whose teardown spans multiple operations. For example,
+    /// when a body is despawned, its constraint and island removal is deferred, so the island may
+    /// temporarily have no bodies but still reference contacts. It is removed once the deferred
+    /// contact removals drain.
+    #[inline]
+    pub fn remove_island_if_empty(&mut self, island_id: IslandId) {
+        if let Some(island) = self.islands.get(island_id.0 as usize)
+            && island.body_count == 0
+            && island.contact_count == 0
+            && island.joint_count == 0
+        {
+            self.remove_island(island_id);
+        }
+    }
+
     /// Returns the next available island ID.
     #[inline]
     pub fn next_id(&self) -> IslandId {
@@ -1363,30 +1381,23 @@ impl BodyIslandNode {
         debug_assert!(island.body_count > 0);
         island.body_count -= 1;
 
-        #[cfg(feature = "validate")]
-        let mut island_removed = false;
-
+        // Update the head and tail of the island's body list. The body may be both the head and the
+        // tail (if it was the only body), so these are handled independently.
         if island.head_body == Some(ctx.entity) {
             island.head_body = next_body_entity;
-
-            if island.head_body.is_none() {
-                // The island is empty. Remove it.
-                debug_assert!(island.tail_body == Some(ctx.entity));
-                debug_assert!(island.body_count == 0);
-                debug_assert!(island.contact_count == 0);
-
-                world
-                    .resource_mut::<PhysicsIslands>()
-                    .remove_island(island_id);
-
-                #[cfg(feature = "validate")]
-                {
-                    island_removed = true;
-                }
-            }
-        } else if island.tail_body == Some(ctx.entity) {
+        }
+        if island.tail_body == Some(ctx.entity) {
             island.tail_body = prev_body_entity;
         }
+
+        // Remove the island if it is now completely empty.
+        //
+        // Note that it may still reference contacts whose removal was deferred.
+        // In that case, the island is kept and removed once those deferred removals drain.
+        islands.remove_island_if_empty(island_id);
+
+        #[cfg(feature = "validate")]
+        let island_removed = islands.get(island_id).is_none();
 
         #[cfg(feature = "validate")]
         if !island_removed {
