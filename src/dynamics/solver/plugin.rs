@@ -8,7 +8,6 @@ use crate::{
             },
             contact::ContactConstraint,
             islands::{BodyIslandNode, IslandId, PhysicsIslands, WakeIslands},
-            joint_graph::JointGraph,
             schedule::SubstepSolverSystems,
             softness_parameters::{SoftnessCoefficients, SoftnessParameters},
             solver_body::{SolverBody, SolverBodyInertia},
@@ -188,7 +187,6 @@ pub fn apply_contact_status_changes(
     mut constraint_graph: ResMut<ConstraintGraph>,
     mut islands: Option<ResMut<PhysicsIslands>>,
     mut body_islands: Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
-    mut joint_graph: ResMut<JointGraph>,
     mut commands: Commands,
 ) {
     if changes.is_empty() {
@@ -204,7 +202,6 @@ pub fn apply_contact_status_changes(
             &mut constraint_graph,
             islands.as_deref_mut(),
             &mut body_islands,
-            &mut joint_graph,
             &mut islands_to_wake,
         );
     }
@@ -227,7 +224,6 @@ fn apply_contact_status_change(
     constraint_graph: &mut ConstraintGraph,
     islands: Option<&mut PhysicsIslands>,
     body_islands: &mut Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
-    joint_graph: &mut JointGraph,
     islands_to_wake: &mut Vec<IslandId>,
 ) {
     match change {
@@ -243,7 +239,7 @@ fn apply_contact_status_change(
 
             // Link the contact to an island.
             if let Some(islands) = islands {
-                let island = islands.add_contact(contact, body_islands, contact_graph, joint_graph);
+                let island = islands.add_contact(contact, body_islands, contact_graph);
 
                 if let Some(island) = island
                     && island.is_sleeping
@@ -265,7 +261,7 @@ fn apply_contact_status_change(
             if let Some(islands) = islands
                 && islands.contact_node(contact).is_some()
             {
-                let island = islands.remove_contact(contact, body_islands, joint_graph);
+                let island = islands.remove_contact(contact, body_islands);
                 let island_id = island.id;
 
                 // TODO: Do we need this?
@@ -316,7 +312,6 @@ struct CachedContactStatusChangeSystemState(
             &'static mut BodyIslandNode,
             Or<(With<Disabled>, Without<Disabled>)>,
         >,
-        ResMut<'static, JointGraph>,
     )>,
 );
 
@@ -369,7 +364,6 @@ impl Command for FlushContactStatusChangeQueue {
                         mut constraint_graph,
                         mut islands,
                         mut body_islands,
-                        mut joint_graph,
                     ) = state.0.get_mut(world);
 
                     for change in changes.drain(..) {
@@ -379,7 +373,6 @@ impl Command for FlushContactStatusChangeQueue {
                             &mut constraint_graph,
                             islands.as_deref_mut(),
                             &mut body_islands,
-                            &mut joint_graph,
                             &mut islands_to_wake,
                         );
                     }

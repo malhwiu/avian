@@ -6,13 +6,10 @@
 mod plugin;
 pub use plugin::{JointComponentId, JointGraphPlugin};
 
-use crate::{
-    data_structures::{
-        graph::{EdgeIndex, NodeIndex},
-        sparse_secondary_map::SparseSecondaryEntityMap,
-        stable_graph::StableUnGraph,
-    },
-    dynamics::solver::islands::IslandNode,
+use crate::data_structures::{
+    graph::{EdgeIndex, NodeIndex},
+    sparse_secondary_map::SparseSecondaryEntityMap,
+    stable_graph::StableUnGraph,
 };
 use bevy::prelude::*;
 
@@ -87,9 +84,6 @@ pub struct JointGraphEdge {
     ///
     /// [`JointCollisionDisabled`]: crate::dynamics::joints::JointCollisionDisabled
     pub collision_disabled: bool,
-
-    /// The [`IslandNode`] associated with this joint.
-    pub island: IslandNode<JointId>,
 }
 
 impl JointGraphEdge {
@@ -103,7 +97,6 @@ impl JointGraphEdge {
             body1,
             body2,
             collision_disabled,
-            island: IslandNode::default(),
         }
     }
 }

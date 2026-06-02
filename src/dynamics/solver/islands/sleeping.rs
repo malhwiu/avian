@@ -303,7 +303,7 @@ impl Command<Result> for SleepBody {
                         body_colliders,
                         mut islands,
                         contact_graph,
-                        mut joint_graph,
+                        joint_graph,
                     ) = state.0.get_mut(world);
 
                     let Some(island) = islands.get_mut(island_id) else {
@@ -318,7 +318,7 @@ impl Command<Result> for SleepBody {
                             &mut body_islands,
                             &body_colliders,
                             &contact_graph,
-                            &mut joint_graph,
+                            &joint_graph,
                         );
                     }
 
