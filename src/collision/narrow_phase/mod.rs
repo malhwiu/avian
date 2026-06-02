@@ -25,10 +25,7 @@ pub use system_param::{ContactStatusChange, ContactStatusChangeQueue, NarrowPhas
 
 use core::marker::PhantomData;
 
-use crate::{
-    dynamics::solver::{ContactConstraints, islands::BodyIslandNode, joint_graph::JointGraph},
-    prelude::*,
-};
+use crate::{dynamics::solver::joint_graph::JointGraph, prelude::*};
 use bevy::{
     ecs::{
         entity_disabling::Disabled,
@@ -53,29 +50,16 @@ use super::{CollisionDiagnostics, contact_types::ContactEdgeFlags};
 /// you may use any collider that implements the [`AnyCollider`] trait.
 pub struct NarrowPhasePlugin<C: AnyCollider, H: CollisionHooks = ()> {
     schedule: Interned<dyn ScheduleLabel>,
-    /// If `true`, the narrow phase will generate [`ContactConstraint`]s
-    /// and add them to the [`ContactConstraints`] resource.
-    ///
-    /// Contact constraints are used by the [`SolverPlugin`] for solving contacts.
-    ///
-    /// [`ContactConstraint`]: dynamics::solver::contact::ContactConstraint
-    generate_constraints: bool,
     _phantom: PhantomData<(C, H)>,
 }
 
 impl<C: AnyCollider, H: CollisionHooks> NarrowPhasePlugin<C, H> {
-    /// Creates a [`NarrowPhasePlugin`] with the schedule used for running its systems
-    /// and whether it should generate [`ContactConstraint`]s for the [`ContactConstraints`] resource.
-    ///
-    /// Contact constraints are used by the [`SolverPlugin`] for solving contacts.
+    /// Creates a [`NarrowPhasePlugin`] with the schedule used for running its systems.
     ///
     /// The default schedule is [`PhysicsSchedule`].
-    ///
-    /// [`ContactConstraint`]: dynamics::solver::contact::ContactConstraint
-    pub fn new(schedule: impl ScheduleLabel, generate_constraints: bool) -> Self {
+    pub fn new(schedule: impl ScheduleLabel) -> Self {
         Self {
             schedule: schedule.intern(),
-            generate_constraints,
             _phantom: PhantomData,
         }
     }
@@ -83,7 +67,7 @@ impl<C: AnyCollider, H: CollisionHooks> NarrowPhasePlugin<C, H> {
 
 impl<C: AnyCollider, H: CollisionHooks> Default for NarrowPhasePlugin<C, H> {
     fn default() -> Self {
-        Self::new(PhysicsSchedule, true)
+        Self::new(PhysicsSchedule)
     }
 }
 
@@ -114,10 +98,6 @@ where
 
         app.add_message::<CollisionStart>()
             .add_message::<CollisionEnd>();
-
-        if self.generate_constraints {
-            app.init_resource::<ContactConstraints>();
-        }
 
         // Set up system set scheduling.
         app.configure_sets(
@@ -401,10 +381,7 @@ fn remove_collider(
     entity: Entity,
     contact_graph: &mut ContactGraph,
     contact_status_changes: &mut ContactStatusChangeQueue,
-    colliding_entities_query: &mut Query<
-        &mut CollidingEntities,
-        Or<(With<Disabled>, Without<Disabled>)>,
-    >,
+    colliding_entities_query: &mut Query<&mut CollidingEntities, Allow<Disabled>>,
     message_writer: &mut MessageWriter<CollisionEnd>,
 ) {
     contact_graph.remove_collider_with(entity, |contact_graph, contact_id| {
@@ -453,24 +430,14 @@ fn remove_collider(
 fn remove_body_on<E: EntityEvent, B: Bundle>(
     trigger: On<E, B>,
     body_collider_query: Query<&RigidBodyColliders>,
-    mut colliding_entities_query: Query<
-        &mut CollidingEntities,
-        Or<(With<Disabled>, Without<Disabled>)>,
-    >,
+    mut colliding_entities_query: Query<&mut CollidingEntities, Allow<Disabled>>,
     mut message_writer: MessageWriter<CollisionEnd>,
-    body_islands: Query<&BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
     mut contact_status_changes: ResMut<ContactStatusChangeQueue>,
     mut contact_graph: ResMut<ContactGraph>,
-    mut commands: Commands,
 ) {
     let Ok(colliders) = body_collider_query.get(trigger.event_target()) else {
         return;
     };
-
-    // Wake up the body's island.
-    if let Ok(body_island) = body_islands.get(trigger.event_target()) {
-        commands.queue(WakeIslands(vec![body_island.island_id]));
-    }
 
     // TODO: Only remove static-static contacts and unlink from islands.
     for collider in colliders {
@@ -492,26 +459,10 @@ fn remove_collider_on<E: EntityEvent, B: Bundle>(
     trigger: On<E, B>,
     mut contact_graph: ResMut<ContactGraph>,
     mut contact_status_changes: ResMut<ContactStatusChangeQueue>,
-    body_islands: Query<&BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
-    // TODO: Change this hack to include disabled entities with `Allows<T>` for 0.17
-    mut query: Query<&mut CollidingEntities, Or<(With<Disabled>, Without<Disabled>)>>,
-    collider_of: Query<&ColliderOf, Or<(With<Disabled>, Without<Disabled>)>>,
+    mut query: Query<&mut CollidingEntities, Allow<Disabled>>,
     mut message_writer: MessageWriter<CollisionEnd>,
-    mut commands: Commands,
 ) {
     let entity = trigger.event_target();
-
-    let body1 = collider_of
-        .get(entity)
-        .map(|&ColliderOf { body }| body)
-        .ok();
-
-    // If the collider was attached to a rigid body, wake its island.
-    if let Some(body) = body1
-        && let Ok(body_island) = body_islands.get(body)
-    {
-        commands.queue(WakeIslands(vec![body_island.island_id]));
-    }
 
     // Remove the collider from the contact graph.
     remove_collider(
@@ -526,14 +477,11 @@ fn remove_collider_on<E: EntityEvent, B: Bundle>(
 /// Removes the touching contacts of a body from the [`ContactGraph`] when the body
 /// is enabled by removing [`RigidBodyDisabled`], so that they are re-created fresh.
 fn on_body_remove_rigid_body_disabled(
-    trigger: On<Add, BodyIslandNode>,
+    trigger: On<Remove, RigidBodyDisabled>,
     body_collider_query: Query<&RigidBodyColliders>,
     mut contact_status_changes: ResMut<ContactStatusChangeQueue>,
     mut contact_graph: ResMut<ContactGraph>,
-    mut colliding_entities_query: Query<
-        &mut CollidingEntities,
-        Or<(With<Disabled>, Without<Disabled>)>,
-    >,
+    mut colliding_entities_query: Query<&mut CollidingEntities, Allow<Disabled>>,
     mut message_writer: MessageWriter<CollisionEnd>,
 ) {
     let Ok(colliders) = body_collider_query.get(trigger.entity) else {
@@ -555,13 +503,10 @@ fn on_body_remove_rigid_body_disabled(
 /// when the body is disabled with [`Disabled`] or [`RigidBodyDisabled`].
 fn on_disable_body(
     trigger: On<Add, (Disabled, RigidBodyDisabled)>,
-    body_collider_query: Query<&RigidBodyColliders, Or<(With<Disabled>, Without<Disabled>)>>,
+    body_collider_query: Query<&RigidBodyColliders, Allow<Disabled>>,
     mut contact_status_changes: ResMut<ContactStatusChangeQueue>,
     mut contact_graph: ResMut<ContactGraph>,
-    mut colliding_entities_query: Query<
-        &mut CollidingEntities,
-        Or<(With<Disabled>, Without<Disabled>)>,
-    >,
+    mut colliding_entities_query: Query<&mut CollidingEntities, Allow<Disabled>>,
     mut message_writer: MessageWriter<CollisionEnd>,
 ) {
     let Ok(colliders) = body_collider_query.get(trigger.entity) else {
@@ -588,10 +533,7 @@ fn on_add_sensor(
     trigger: On<Add, Sensor>,
     mut contact_status_changes: ResMut<ContactStatusChangeQueue>,
     mut contact_graph: ResMut<ContactGraph>,
-    mut colliding_entities_query: Query<
-        &mut CollidingEntities,
-        Or<(With<Disabled>, Without<Disabled>)>,
-    >,
+    mut colliding_entities_query: Query<&mut CollidingEntities, Allow<Disabled>>,
     mut message_writer: MessageWriter<CollisionEnd>,
 ) {
     remove_collider(
@@ -609,10 +551,7 @@ fn on_remove_sensor(
     trigger: On<Remove, Sensor>,
     mut contact_status_changes: ResMut<ContactStatusChangeQueue>,
     mut contact_graph: ResMut<ContactGraph>,
-    mut colliding_entities_query: Query<
-        &mut CollidingEntities,
-        Or<(With<Disabled>, Without<Disabled>)>,
-    >,
+    mut colliding_entities_query: Query<&mut CollidingEntities, Allow<Disabled>>,
     mut message_writer: MessageWriter<CollisionEnd>,
 ) {
     remove_collider(
