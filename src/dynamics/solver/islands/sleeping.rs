@@ -28,11 +28,13 @@ use bevy::{
 
 use crate::{
     data_structures::bit_vec::BitVec,
-    dynamics::solver::{
-        constraint_graph::ConstraintGraph,
-        islands::{BodyIslandNode, IslandId, PhysicsIslands},
-        joint_graph::JointGraph,
-        solver_body::SolverBody,
+    dynamics::{
+        joints::joint_graph::JointGraph,
+        solver::{
+            constraint_graph::ConstraintGraph,
+            islands::{BodyIslandNode, IslandId, PhysicsIslands},
+            solver_body::SolverBody,
+        },
     },
     prelude::*,
     schedule::{LastPhysicsTick, is_changed_after_tick},

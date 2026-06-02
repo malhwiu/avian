@@ -1,6 +1,9 @@
 use crate::{
     dynamics::{
-        joints::EntityConstraint,
+        joints::{
+            EntityConstraint,
+            joint_graph::{JointGraph, JointGraphChange},
+        },
         solver::{
             SolverDiagnostics,
             constraint_graph::{
@@ -116,17 +119,17 @@ impl Plugin for SolverPlugin {
 
         physics.add_systems(update_contact_softness.before(PhysicsStepSystems::NarrowPhase));
 
-        // Apply queued contact status changes to the constraint graph and islands.
+        // Apply queued contact status changes and joint graph changes
+        // to the constraint graph and islands.
         //
-        // This is drained at two points each time step:
+        // These are drained at two points each time step:
         //
-        // - Before the broad phase, to apply changes recorded by the collider/body lifecycle
-        //   observers since the last step. Doing this before the broad phase ensures the
-        //   constraint graph and islands are cleaned up before any freed contact IDs are reused.
-        // - At the start of the solver, to apply the changes recorded by the narrow phase.
+        // - Before the broad phase (contacts only)
+        // - At the start of the solver
         physics.add_systems(apply_contact_status_changes.in_set(PhysicsStepSystems::First));
         physics.add_systems(
-            apply_contact_status_changes
+            (apply_contact_status_changes, apply_joint_graph_changes)
+                .chain()
                 .in_set(PhysicsStepSystems::Solver)
                 .before(SolverSystems::PrepareSolverBodies),
         );
@@ -204,6 +207,64 @@ pub fn apply_contact_status_changes(
             &mut body_islands,
             &mut islands_to_wake,
         );
+    }
+
+    if !islands_to_wake.is_empty() {
+        islands_to_wake.sort_unstable();
+        islands_to_wake.dedup();
+
+        // Wake up the islands that were previously sleeping.
+        commands.queue(WakeIslands(islands_to_wake));
+    }
+}
+
+/// Applies [`JointGraphChange`] messages to [`PhysicsIslands`].
+pub fn apply_joint_graph_changes(
+    mut changes: MessageReader<JointGraphChange>,
+    joint_graph: Res<JointGraph>,
+    mut islands: Option<ResMut<PhysicsIslands>>,
+    mut body_islands: Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
+    mut commands: Commands,
+) {
+    let Some(islands) = &mut islands else {
+        // Islands are not in use, so there is nothing to update.
+        changes.clear();
+        return;
+    };
+
+    let mut islands_to_wake: Vec<IslandId> = Vec::new();
+
+    for &change in changes.read() {
+        match change {
+            JointGraphChange::Added(joint_id) => {
+                // The joint may have already been removed before this change was applied.
+                if joint_graph.get_by_id(joint_id).is_none() {
+                    continue;
+                }
+
+                // Link the joint to an island.
+                if let Some(island) = islands.add_joint(joint_id, &mut body_islands, &joint_graph)
+                    && island.is_sleeping
+                {
+                    // Wake up the island if it was previously sleeping.
+                    islands_to_wake.push(island.id);
+                }
+            }
+            JointGraphChange::Removed(joint_id) => {
+                // The joint may never have been linked to an island.
+                if islands.joint_node(joint_id).is_none() {
+                    continue;
+                }
+
+                // Unlink the joint from its island.
+                if let Some(island) = islands.remove_joint(joint_id, &mut body_islands)
+                    && island.is_sleeping
+                {
+                    // Wake up the island if it was previously sleeping.
+                    islands_to_wake.push(island.id);
+                }
+            }
+        }
     }
 
     if !islands_to_wake.is_empty() {

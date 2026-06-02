@@ -53,9 +53,9 @@ use bevy::{
 use crate::{
     collision::contact_types::ContactId,
     data_structures::stable_vec::StableVec,
-    dynamics::solver::{
-        joint_graph::{JointGraph, JointId},
-        solver_body::SolverBody,
+    dynamics::{
+        joints::joint_graph::{JointGraph, JointId},
+        solver::solver_body::SolverBody,
     },
     prelude::{
         ContactGraph, PhysicsSchedule, RigidBody, RigidBodyColliders, RigidBodyDisabled,

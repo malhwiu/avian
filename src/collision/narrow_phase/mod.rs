@@ -25,7 +25,7 @@ pub use system_param::{ContactStatusChange, ContactStatusChangeQueue, NarrowPhas
 
 use core::marker::PhantomData;
 
-use crate::{dynamics::solver::joint_graph::JointGraph, prelude::*};
+use crate::{dynamics::joints::joint_graph::JointGraph, prelude::*};
 use bevy::{
     ecs::{
         entity_disabling::Disabled,

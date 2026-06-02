@@ -212,6 +212,8 @@ Therefore, they have 3 translational DOF and 3 rotational DOF, a total of 6 DOF.
 //!
 //! Take a look at the documentation and methods of each joint to see all the different configuration options.
 
+pub mod joint_graph;
+
 mod distance;
 mod fixed;
 mod motor;
@@ -230,7 +232,7 @@ pub use revolute::RevoluteJoint;
 #[cfg(feature = "3d")]
 pub use spherical::SphericalJoint;
 
-use crate::{dynamics::solver::joint_graph::JointGraph, prelude::*};
+use crate::{dynamics::joints::joint_graph::JointGraph, prelude::*};
 use bevy::{
     ecs::{entity::MapEntities, lifecycle::HookContext, world::DeferredWorld},
     prelude::*,
