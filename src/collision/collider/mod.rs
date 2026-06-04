@@ -256,6 +256,22 @@ pub trait AnyCollider: Component<Mutability = Mutable> + ComputeMassProperties {
         manifolds: &mut Vec<ContactManifold>,
         context: ColliderPairContext<Self::Context>,
     );
+
+    /// Returns the minimum extent of the collider relative to its centroid.
+    fn min_extent_with_context(&self, context: ColliderContext<Self::Context>) -> Scalar {
+        let aabb = self.aabb_with_context(Vector::ZERO, Rotation::IDENTITY, context);
+        aabb.size().min_element() * 0.5
+    }
+
+    /// Returns the maximum distance from the collider to the given point.
+    fn max_distance_to_point_with_context(
+        &self,
+        point: Vector,
+        context: ColliderContext<Self::Context>,
+    ) -> Scalar {
+        let aabb = self.aabb_with_context(Vector::ZERO, Rotation::IDENTITY, context);
+        point.distance(aabb.center()) + aabb.size().length() * 0.5
+    }
 }
 
 /// A simplified wrapper around [`AnyCollider`] that doesn't require passing in the context for
@@ -316,6 +332,16 @@ pub trait SimpleCollider: AnyCollider<Context = ()> {
             manifolds,
             ColliderPairContext::fake(),
         )
+    }
+
+    /// Returns the minimum extent of the collider relative to its centroid.
+    fn min_extent(&self) -> Scalar {
+        self.min_extent_with_context(ColliderContext::fake())
+    }
+
+    /// Returns the maximum distance from the collider to the given point.
+    fn max_distance_to_point(&self, point: Vector) -> Scalar {
+        self.max_distance_to_point_with_context(point, ColliderContext::fake())
     }
 }
 
@@ -491,6 +517,12 @@ impl ColliderAabb {
     #[inline(always)]
     pub fn size(self) -> Vector {
         self.max - self.min
+    }
+
+    /// Computes the half-size of the AABB.
+    #[inline(always)]
+    pub fn half_size(self) -> Vector {
+        self.size() * 0.5
     }
 
     /// Merges this AABB with another one.
