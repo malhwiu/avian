@@ -1,5 +1,6 @@
 //! Common components and bundles for rigid bodies.
 
+pub mod body_radii;
 pub mod forces;
 pub mod mass_properties;
 pub mod sleeping;

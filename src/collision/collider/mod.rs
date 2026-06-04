@@ -257,8 +257,11 @@ pub trait AnyCollider: Component<Mutability = Mutable> + ComputeMassProperties {
         context: ColliderPairContext<Self::Context>,
     );
 
-    /// Returns the minimum extent of the collider relative to its centroid.
-    fn min_extent_with_context(&self, context: ColliderContext<Self::Context>) -> Scalar {
+    /// Returns the minimum thickness of the collider.
+    ///
+    /// Typically corresponds to the minimum distance from the centroid
+    /// of any given shape to its surface.
+    fn min_thickness_with_context(&self, context: ColliderContext<Self::Context>) -> Scalar {
         let aabb = self.aabb_with_context(Vector::ZERO, Rotation::IDENTITY, context);
         aabb.size().min_element() * 0.5
     }
@@ -334,12 +337,18 @@ pub trait SimpleCollider: AnyCollider<Context = ()> {
         )
     }
 
-    /// Returns the minimum extent of the collider relative to its centroid.
-    fn min_extent(&self) -> Scalar {
-        self.min_extent_with_context(ColliderContext::fake())
+    /// Returns the minimum thickness of the collider.
+    ///
+    /// Typically corresponds to the minimum distance from the centroid
+    /// of any given shape to its surface.
+    fn min_thickness(&self) -> Scalar {
+        self.min_thickness_with_context(ColliderContext::fake())
     }
 
     /// Returns the maximum distance from the collider to the given point.
+    ///
+    /// Typically corresponds to the radius of the sphere formed by sweeping
+    /// the shape about its centroid.
     fn max_distance_to_point(&self, point: Vector) -> Scalar {
         self.max_distance_to_point_with_context(point, ColliderContext::fake())
     }

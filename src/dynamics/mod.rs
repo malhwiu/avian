@@ -84,6 +84,7 @@ pub mod prelude {
             JointFrame, JointPlugin, LinearMotor, MotorModel, PrismaticJoint, RevoluteJoint,
         },
         rigid_body::{
+            body_radii::{BodyRadii, BodyRadiiPlugin},
             forces::{
                 ConstantAngularAcceleration, ConstantForce, ConstantLinearAcceleration,
                 ConstantLocalForce, ConstantLocalLinearAcceleration, ConstantTorque, ForcePlugin,
