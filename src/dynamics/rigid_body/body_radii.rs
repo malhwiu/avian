@@ -13,7 +13,7 @@ use crate::{
     },
     dynamics::rigid_body::mass_properties::components::ComputedCenterOfMass,
     math::Scalar,
-    schedule::PhysicsSchedule,
+    schedule::{PhysicsSchedule, PhysicsStepSystems},
 };
 
 /// Radii associated with a [`RigidBody`] and its colliders.
@@ -63,7 +63,14 @@ pub struct BodyRadiiPlugin<C: AnyCollider> {
 
 impl<C: AnyCollider> Plugin for BodyRadiiPlugin<C> {
     fn build(&self, app: &mut App) {
-        app.add_systems(PhysicsSchedule, update_body_radii::<C>);
+        // Update body radii before they are consumed by the solver and continuous collision
+        // detection. Allowing ambiguities lets multiple collision backends coexist.
+        app.add_systems(
+            PhysicsSchedule,
+            update_body_radii::<C>
+                .before(PhysicsStepSystems::Solver)
+                .ambiguous_with_all(),
+        );
     }
 }
 
