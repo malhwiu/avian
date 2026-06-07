@@ -548,7 +548,7 @@ pub mod prelude {
         PhysicsPlugins,
         collider_tree::{ColliderTreeOptimization, ColliderTreePlugin, TreeOptimizationMode},
         collision::prelude::*,
-        dynamics::{self, ccd::SpeculativeMargin, prelude::*},
+        dynamics::{self, prelude::*},
         interpolation::*,
         physics_transform::{PhysicsTransformHelper, PhysicsTransformPlugin, Position, Rotation},
         schedule::{

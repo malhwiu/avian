@@ -275,6 +275,9 @@ use derive_more::From;
     ComputedMass,
     ComputedAngularInertia,
     ComputedCenterOfMass,
+    // Used by continuous collision detection and other systems for computing
+    // some thresholds based on the size metrics of the body.
+    BodyRadii,
     // Required for local forces and acceleration.
     AccumulatedLocalAcceleration,
     // TODO: We can remove these pre-solve deltas once joints don't use XPBD.
