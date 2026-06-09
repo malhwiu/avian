@@ -203,18 +203,14 @@ pub struct CollisionEventSystems;
 #[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
 #[reflect(Debug, Resource, PartialEq)]
 pub struct NarrowPhaseConfig {
-    /// A small, fixed margin around colliders determining the distance
-    /// at which contacts are predicted before they happen.
-    ///
-    /// This is used for speculative contacts during [Continuous Collision Detection (CCD)](dynamics::ccd)
-    /// to help prevent fast-moving objects from tunneling through geometry.
-    /// It can also help ensure that contacts are not missed due to numerical issues
-    /// or solver jitter for objects that are in continuous contact.
+    /// A small, positive contact tolerance to help ensure that contacts are not missed
+    /// due to numerical issues or solver jitter for objects that are in continuous
+    /// contact, such as pushing against each other.
     ///
     /// This is implicitly scaled by the [`PhysicsLengthUnit`].
     ///
     /// Default: `0.02`
-    pub speculative_margin: Scalar,
+    pub contact_tolerance: Scalar,
 
     /// If `true`, the current contacts will be matched with the previous contacts
     /// based on feature IDs or contact positions, and the contact impulses from
@@ -230,7 +226,8 @@ pub struct NarrowPhaseConfig {
 impl Default for NarrowPhaseConfig {
     fn default() -> Self {
         Self {
-            speculative_margin: 0.02,
+            // TODO: Investigate if this could be smaller
+            contact_tolerance: 0.02,
             match_contacts: true,
         }
     }

@@ -347,6 +347,16 @@ pub struct CcdSettings {
     /// **Default**: [`SweepMode::NonLinear`]
     pub mode: SweepMode,
 
+    /// The fraction of a body's minimum CCD thickness it may travel in a frame before being
+    /// treated as a fast-moving body.
+    ///
+    /// This should typically be in the range `[0.0, 1.0]` to prevent tunneling.
+    /// Smaller values trigger CCD more easily, which can help prevent overlap,
+    /// at the cost of more overhead as sweeps are performed even at lower speeds.
+    ///
+    /// **Default**: `0.5`
+    pub safety_factor: Scalar,
+
     /// Whether the body is additionally swept against other dynamic bodies.
     ///
     /// Dynamic bodies are always swept against static and kinematic bodies;
@@ -370,6 +380,7 @@ impl CcdSettings {
         Self {
             enabled: true,
             mode: SweepMode::NonLinear,
+            safety_factor: 0.5,
             include_dynamic: false,
         }
     }
@@ -518,10 +529,6 @@ fn solve_continuous(
     time: Res<Time>,
     mut diagnostics: ResMut<SolverDiagnostics>,
 ) {
-    /// The fraction of a body's minimum thickness it may travel in a frame before being
-    /// treated as a fast body.
-    const FAST_BODY_SAFETY_FACTOR: Scalar = 0.5;
-
     let start = crate::utils::Instant::now();
 
     let delta_secs = time.delta_seconds_adjusted();
@@ -585,7 +592,7 @@ fn solve_continuous(
 
         // Check if the body moved more than the threshold fraction of its minimum thickness.
         // This way, CCD is only performed for bodies that are actually at risk of tunneling.
-        if max_motion <= FAST_BODY_SAFETY_FACTOR * min_thickness {
+        if max_motion <= ccd.safety_factor * min_thickness {
             // Not a fast body, so no CCD is needed.
             return;
         }
@@ -812,8 +819,7 @@ fn solve_continuous(
                 if let Some((_edge, pair)) =
                     contact_graph.get_mut(impact.collider1, impact.collider2)
                 {
-                    pair.ccd_speculative_distance =
-                        pair.ccd_speculative_distance.max(impact.distance);
+                    pair.speculative_distance = pair.speculative_distance.max(impact.distance);
                 } else {
                     let mut edge = ContactEdge::new(impact.collider1, impact.collider2);
                     edge.body1 = Some(entity);
@@ -824,7 +830,7 @@ fn solve_continuous(
                     contact_graph.add_edge_with(edge, |pair| {
                         pair.body1 = body1;
                         pair.body2 = body2;
-                        pair.ccd_speculative_distance = distance;
+                        pair.speculative_distance = distance;
                     });
                 }
             }

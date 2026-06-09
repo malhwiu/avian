@@ -79,7 +79,7 @@ impl<C: AnyCollider> Plugin for ColliderTreeUpdatePlugin<C> {
              narrow_phase_config: Res<NarrowPhaseConfig>,
              length_unit: Res<PhysicsLengthUnit>,
              collider_context: StaticSystemParam<C::Context>| {
-                let speculative_margin = length_unit.0 * narrow_phase_config.speculative_margin;
+                let contact_tolerance = length_unit.0 * narrow_phase_config.contact_tolerance;
 
                 if let Ok((
                     collider,
@@ -96,7 +96,7 @@ impl<C: AnyCollider> Plugin for ColliderTreeUpdatePlugin<C> {
                     // TODO: Should we instead do this in `add_to_tree_on`?
                     // Update tight-fitting AABB.
                     let context = ColliderContext::new(trigger.entity, &*collider_context);
-                    let growth = Vector::splat(speculative_margin + collision_margin);
+                    let growth = Vector::splat(contact_tolerance + collision_margin);
                     *aabb = collider
                         .aabb_with_context(pos.0, *rot, context)
                         .grow(growth);
@@ -709,9 +709,9 @@ fn update_solver_body_aabbs<C: AnyCollider>(
     e.dynamic_proxies.clear_and_set_capacity(cap_dynamic);
     e.kinematic_proxies.clear_and_set_capacity(cap_kinematic);
 
-    // A small, fixed speculative distance is added to each AABB so the narrow phase
-    // can predict slightly separated contacts. This is needed for continuous collision.
-    let speculative_margin = length_unit.0 * narrow_phase_config.speculative_margin;
+    // A small, fixed contact tolerance is added to each AABB so the narrow phase
+    // can predict slightly separated contacts.
+    let contact_tolerance = length_unit.0 * narrow_phase_config.contact_tolerance;
 
     let delta_secs = time.delta_seconds_adjusted();
 
@@ -737,7 +737,7 @@ fn update_solver_body_aabbs<C: AnyCollider>(
                 let collision_margin = collision_margin.map_or(0.0, |margin| margin.0);
 
                 let context = ColliderContext::new(collider_entity, &*collider_context);
-                let growth = Vector::splat(speculative_margin + collision_margin);
+                let growth = Vector::splat(contact_tolerance + collision_margin);
 
                 *aabb = if speculative_aabb {
                     // Opt-in velocity-expanded AABB: sweep the collider from its current pose to
@@ -885,7 +885,9 @@ pub fn update_moved_collider_aabbs<C: AnyCollider>(
     e.static_proxies.clear_and_set_capacity(cap_static);
     e.standalone_proxies.clear_and_set_capacity(cap_standalone);
 
-    let speculative_margin = length_unit.0 * narrow_phase_config.speculative_margin;
+    // A small, fixed contact tolerance is added to each AABB so the narrow phase
+    // can predict slightly separated contacts.
+    let contact_tolerance = length_unit.0 * narrow_phase_config.contact_tolerance;
 
     // TODO: This doesn't do velocity-based enlargement like the dynamic/kinematic AABB update.
     //       We should overall rework CCD to not rely on velocity-based AABB enlargement for all bodies.
@@ -916,7 +918,7 @@ pub fn update_moved_collider_aabbs<C: AnyCollider>(
 
             // Update tight-fitting AABB.
             let context = ColliderContext::new(entity, &*collider_context);
-            let growth = Vector::splat(speculative_margin + collision_margin);
+            let growth = Vector::splat(contact_tolerance + collision_margin);
             *aabb = collider
                 .aabb_with_context(pos.0, *rot, context)
                 .grow(growth);
@@ -931,10 +933,10 @@ pub fn update_moved_collider_aabbs<C: AnyCollider>(
             }
 
             // Dynamic and kinematic colliders use the size-relative AABB margin, while static and
-            // standalone colliders only use the smaller speculative margin to keep their AABBs tight.
+            // standalone colliders only use the smaller contact tolerance to keep their AABBs tight.
             let margin = match proxy_key.tree_type() {
                 ColliderTreeType::Dynamic | ColliderTreeType::Kinematic => aabb_margin.0,
-                ColliderTreeType::Static | ColliderTreeType::Standalone => speculative_margin,
+                ColliderTreeType::Static | ColliderTreeType::Standalone => contact_tolerance,
             };
 
             // Try to update the enlarged AABB, and if it changed, mark the proxy as moved.

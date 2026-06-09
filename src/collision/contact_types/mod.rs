@@ -173,13 +173,15 @@ pub struct ContactPair {
     ///
     /// [`ConstraintGraph`]: crate::dynamics::solver::constraint_graph::ConstraintGraph
     pub(crate) manifold_count_change: i16,
-    /// An extra speculative contact distance requested by [Continuous Collision Detection](dynamics::ccd)
-    /// for a single timestep.
+    /// A speculative contact distance used to predict contacts before they happen.
+    /// Used for [Continuous Collision Detection (CCD)](dynamics::ccd).
     ///
-    /// When greater than zero, the narrow phase computes this pair's manifold even if the
-    /// [AABBs](ColliderAabb) no longer overlap. This ensures that all impacts found by CCD
-    /// are handled by the discrete solver. The distance is reset to zero each timestep.
-    pub(crate) ccd_speculative_distance: Scalar,
+    /// This is used by Avian to ensure that all impacts found by CCD
+    /// are handled by the discrete solver, but it can also be used
+    /// for speculative contacts in general.
+    ///
+    /// The speculative distance is reset to zero each timestep.
+    pub speculative_distance: Scalar,
     /// Flag indicating the status and type of the contact pair.
     pub flags: ContactPairFlags,
 }
@@ -227,7 +229,7 @@ impl ContactPair {
             body2: None,
             manifolds: Vec::new(),
             manifold_count_change: 0,
-            ccd_speculative_distance: 0.0,
+            speculative_distance: 0.0,
             flags: ContactPairFlags::empty(),
         }
     }

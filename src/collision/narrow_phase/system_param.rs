@@ -434,7 +434,7 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
     ) where
         for<'w, 's> SystemParamItem<'w, 's, H>: CollisionHooks,
     {
-        let speculative_margin = self.length_unit.0 * self.config.speculative_margin;
+        let contact_tolerance = self.length_unit.0 * self.config.contact_tolerance;
 
         // Contact bit vecs must be sized based on the full contact capacity,
         // not the number of active contact pairs, because pair indices
@@ -497,13 +497,17 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                 return;
             };
 
-            // An extra speculative distance requested by CCD for this timestep
-            // to ensure that the impact is handled by the discrete solver.
-            let ccd_speculative_distance = core::mem::take(&mut contacts.ccd_speculative_distance);
+            // An extra speculative distance requested for this timestep.
+            // This can be used to ensure that TOI impacts are handled by the discrete solver,
+            // or more generally for speculative contacts.
+            let speculative_distance = core::mem::take(&mut contacts.speculative_distance);
 
             // Check if the AABBs of the colliders still overlap and the contact pair is valid.
-            let overlap = collider1.enlarged_aabb.intersects(collider2.enlarged_aabb)
-                || ccd_speculative_distance > 0.0;
+            let overlap = collider1.enlarged_aabb.intersects(
+                &collider2
+                    .enlarged_aabb
+                    .grow(Vector::splat(speculative_distance)),
+            );
 
             // Also check if the collision layers are still compatible and the contact pair is valid.
             // TODO: Ideally, we would have fine-grained change detection for `CollisionLayers`
@@ -639,9 +643,9 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                 let relative_linear_velocity = lin_vel2 - lin_vel1;
 
                 // The maximum distance at which contacts are detected.
-                // At least as large as the speculative margin.
+                // At least as large as the contact tolerance.
                 let max_contact_distance =
-                    speculative_margin + collision_margin_sum + ccd_speculative_distance;
+                    contact_tolerance + collision_margin_sum + speculative_distance;
 
                 let was_touching = contacts.flags.contains(ContactPairFlags::TOUCHING);
 
@@ -650,7 +654,7 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
 
                 // TODO: It'd be good to persist the manifolds and let Parry match contacts.
                 //       This isn't currently done because it requires using Parry's contact manifold type.
-                // Compute the contact manifolds using the effective speculative margin.
+                // Compute the contact manifolds.
                 let context =
                     ColliderPairContext::new(collider1.entity, collider2.entity, collider_context);
                 collider1.shape.contact_manifolds_with_context(
@@ -703,9 +707,9 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
 
                         // Keep the contact if (1) the separation distance is below the required threshold,
                         // or if (2) the bodies are expected to come into contact within the next time step.
-                        -point.penetration < speculative_margin || {
+                        -point.penetration < contact_tolerance || {
                             let delta_distance = normal_speed * delta_secs;
-                            delta_distance - point.penetration < speculative_margin
+                            delta_distance - point.penetration < contact_tolerance
                         }
                     });
 
