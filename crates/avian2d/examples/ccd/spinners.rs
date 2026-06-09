@@ -104,7 +104,7 @@ fn setup(mut commands: Commands) {
         },
     ));
 
-    // Setup help text.
+    // Instruction text
     let font = TextFont {
         font_size: 20.0,
         ..default()
