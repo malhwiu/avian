@@ -451,6 +451,11 @@ impl AnyCollider for Collider {
         let bounding_sphere = self.shape_scaled().compute_local_bounding_sphere();
         point.distance(bounding_sphere.center) + bounding_sphere.radius
     }
+
+    fn max_extent_with_context(&self, _context: ColliderContext<Self::Context>) -> Scalar {
+        let center_of_mass = self.center_of_mass();
+        self.max_distance_to_point(center_of_mass)
+    }
 }
 
 // TODO: `bevy_heavy` supports computing the individual mass properties efficiently for Bevy's primitive shapes,

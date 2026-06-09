@@ -497,8 +497,13 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                 return;
             };
 
+            // An extra speculative distance requested by CCD for this timestep
+            // to ensure that the impact is handled by the discrete solver.
+            let ccd_speculative_distance = core::mem::take(&mut contacts.ccd_speculative_distance);
+
             // Check if the AABBs of the colliders still overlap and the contact pair is valid.
-            let overlap = collider1.enlarged_aabb.intersects(collider2.enlarged_aabb);
+            let overlap = collider1.enlarged_aabb.intersects(collider2.enlarged_aabb)
+                || ccd_speculative_distance > 0.0;
 
             // Also check if the collision layers are still compatible and the contact pair is valid.
             // TODO: Ideally, we would have fine-grained change detection for `CollisionLayers`
@@ -635,7 +640,8 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
 
                 // The maximum distance at which contacts are detected.
                 // At least as large as the speculative margin.
-                let max_contact_distance = speculative_margin + collision_margin_sum;
+                let max_contact_distance =
+                    speculative_margin + collision_margin_sum + ccd_speculative_distance;
 
                 let was_touching = contacts.flags.contains(ContactPairFlags::TOUCHING);
 

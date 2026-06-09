@@ -275,6 +275,15 @@ pub trait AnyCollider: Component<Mutability = Mutable> + ComputeMassProperties {
         let aabb = self.aabb_with_context(Vector::ZERO, Rotation::IDENTITY, context);
         point.distance(aabb.center()) + aabb.size().length() * 0.5
     }
+
+    /// Returns the maximum extent of the collider. This is the farthest distance
+    /// from the centroid of the shape to any point on its surface.
+    ///
+    /// This is used to compute a size-relative [`ColliderAabbMargin`] for the collider.
+    fn max_extent_with_context(&self, context: ColliderContext<Self::Context>) -> Scalar {
+        let aabb = self.aabb_with_context(Vector::ZERO, Rotation::IDENTITY, context);
+        aabb.size().length() * 0.5
+    }
 }
 
 /// A simplified wrapper around [`AnyCollider`] that doesn't require passing in the context for
@@ -351,6 +360,14 @@ pub trait SimpleCollider: AnyCollider<Context = ()> {
     /// the shape about its centroid.
     fn max_distance_to_point(&self, point: Vector) -> Scalar {
         self.max_distance_to_point_with_context(point, ColliderContext::fake())
+    }
+
+    /// Returns the maximum extent of the collider. This is the farthest distance
+    /// from the centroid of the shape to any point on its surface.
+    ///
+    /// This is used to compute a size-relative [`ColliderAabbMargin`] for the collider.
+    fn max_extent(&self) -> Scalar {
+        self.max_extent_with_context(ColliderContext::fake())
     }
 }
 
@@ -645,6 +662,46 @@ impl EnlargedAabb {
     /// Gets the [`ColliderAabb`] of the enlarged AABB.
     pub fn get(&self) -> ColliderAabb {
         self.0
+    }
+}
+
+/// The margin used to enlarge the [`ColliderAabb`] of a collider into its [`EnlargedAabb`].
+///
+/// Enlarging the AABB allows the collider to move by a small amount without triggering
+/// an update of the Bounding Volume Hierarchy, which improves performance.
+///
+/// The margin is computed automatically from the size of the collider, scaled relative to the
+/// [`PhysicsLengthUnit`]. Larger shapes get a larger margin (up to [`ColliderAabbMargin::MAX`]),
+/// while small shapes get a margin proportional to their size to avoid wastefully fat AABBs.
+///
+/// [`PhysicsLengthUnit`]: crate::dynamics::solver::PhysicsLengthUnit
+#[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, PartialEq)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
+#[reflect(Debug, Component, Default, PartialEq)]
+pub struct ColliderAabbMargin(pub Scalar);
+
+impl ColliderAabbMargin {
+    /// The maximum AABB margin before being scaled by the [`PhysicsLengthUnit`].
+    ///
+    /// This is used to fatten AABBs in the broad phase acceleration structure. This allows proxies
+    /// to move by a small amount without triggering a tree adjustment.
+    ///
+    /// [`PhysicsLengthUnit`]: crate::dynamics::solver::PhysicsLengthUnit
+    pub const MAX: Scalar = 0.2;
+
+    /// For small shapes, the margin is limited to this fraction of the shape's maximum extent.
+    pub const FRACTION: Scalar = 0.5;
+
+    /// Computes the AABB margin for a collider with the given `max_extent` and [`PhysicsLengthUnit`].
+    ///
+    /// The margin is clamped to at most [`ColliderAabbMargin::MAX`] scaled by the length unit,
+    /// and at most [`ColliderAabbMargin::FRACTION`] of the maximum extent for small shapes.
+    ///
+    /// [`PhysicsLengthUnit`]: crate::dynamics::solver::PhysicsLengthUnit
+    #[inline]
+    pub fn from_max_extent(max_extent: Scalar, length_unit: Scalar) -> Self {
+        Self((length_unit * Self::MAX).min(Self::FRACTION * max_extent))
     }
 }
 

@@ -246,7 +246,9 @@ use core::cell::RefCell;
 #[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 use dynamics::solver::SolverDiagnostics;
 #[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
-use parry::query::{NonlinearRigidMotion, ShapeCastOptions, cast_shapes, cast_shapes_nonlinear};
+use parry::query::{
+    NonlinearRigidMotion, ShapeCastHit, ShapeCastOptions, cast_shapes, cast_shapes_nonlinear,
+};
 #[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 use thread_local::ThreadLocal;
 
@@ -420,6 +422,43 @@ pub enum SweepMode {
     NonLinear,
 }
 
+/// A marker component that expands a body's [`ColliderAabb`] based on
+/// its velocity each timestep.
+///
+/// By default, AABBs are kept tight, only expanded by a small fixed margin.
+/// The downside is that a fast body's AABB does not reach ahead along its path,
+/// so two fast-moving bodies approacing each other from different directions
+/// might not collide even with [CCD](self), because their swept shapes would not
+/// find each other. Adding this component works around the issue, at the cost of
+/// more broad phase collision tests due to the larger AABB.
+///
+/// It is only recommended to add this component to fast-moving bodies
+/// that should reliably collide with other fast-moving bodies.
+/// Oftentimes these entities also have [`CcdSettings::include_dynamic`] enabled.
+///
+/// # Example
+///
+/// ```
+#[cfg_attr(feature = "2d", doc = "use avian2d::prelude::*;")]
+#[cfg_attr(feature = "3d", doc = "use avian3d::prelude::*;")]
+/// use bevy::prelude::*;
+///
+/// fn setup(mut commands: Commands) {
+///     // A fast body whose AABB is expanded by its velocity
+///     // and is also swept against other dynamic bodies for CCD.
+///     commands.spawn((
+///         RigidBody::Dynamic,
+#[cfg_attr(feature = "2d", doc = "        Collider::circle(0.1),")]
+#[cfg_attr(feature = "3d", doc = "        Collider::sphere(0.1),")]
+///         SpeculativeAabb,
+///         CcdSettings::default().with_include_dynamic(true),
+///     ));
+/// }
+/// ```
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Component, Debug, Default, PartialEq)]
+pub struct SpeculativeAabb;
+
 /// Read-only [`SolverBody`] motion data used to reconstruct a body's per-frame sweep.
 #[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 #[derive(QueryData)]
@@ -440,6 +479,27 @@ struct CcdResult {
     entity: Entity,
     /// The time of impact fraction in `[0, 1]`,
     fraction: Scalar,
+    /// Details of the earliest impact, if one was found.
+    impact: Option<CcdImpact>,
+}
+
+/// Details of the earliest time-of-impact for a fast body, used to clamp the body's normal
+/// motion this frame and to hand the contact off to the discrete solver next frame.
+struct CcdImpact {
+    /// World-space contact normal, pointing from the fast body toward the obstacle.
+    normal: Vector,
+    /// The fast body's colliding collider.
+    collider1: Entity,
+    /// The obstacle's colliding collider.
+    collider2: Entity,
+    /// The obstacle's body, if any (static colliders have none).
+    body2: Option<Entity>,
+    /// Additional speculative distance to request for the discrete solver next timestep,
+    /// so that the contact is detected even if the bodies were separated at the TOI impact.
+    ///
+    /// This is typically only relevant for dynamic-dynamic and dynamic-kinematic impacts
+    /// where the final pose of the other shape ended up separated from the TOI impact point.
+    distance: Scalar,
 }
 
 /// Performs [Continuous Collision Detection](self).
@@ -454,7 +514,7 @@ fn solve_continuous(
     colliders: Query<(&Collider, &Position, &Rotation)>,
     mut bodies: ParamSet<(Query<CcdBodyQuery>, Query<&mut SolverBody>)>,
     trees: Res<ColliderTrees>,
-    contact_graph: Res<ContactGraph>,
+    mut contact_graph: ResMut<ContactGraph>,
     time: Res<Time>,
     mut diagnostics: ResMut<SolverDiagnostics>,
 ) {
@@ -530,14 +590,15 @@ fn solve_continuous(
             return;
         }
 
-        // Records a fast body's time-of-impact fraction on the current thread.
-        let record = |fraction| {
+        // Records a fast body's time-of-impact fraction and earliest impact on the current thread.
+        let record = |fraction, impact| {
             thread_local_results
                 .get_or(|| RefCell::new(Vec::new()))
                 .borrow_mut()
                 .push(CcdResult {
                     entity: fast.entity,
                     fraction,
+                    impact,
                 });
         };
 
@@ -555,6 +616,9 @@ fn solve_continuous(
         // The smallest time of impact found across all of the body's colliders.
         // Starts at the full timestep duration.
         let mut min_toi = delta_secs;
+
+        // Details of the earliest impact found across all of the body's colliders.
+        let mut best_impact: Option<CcdImpact> = None;
 
         // Sweep each collider attached to the body.
         for collider_entity in fast.colliders {
@@ -646,12 +710,30 @@ fn solve_continuous(
                     SweepMode::NonLinear
                 };
 
-                    // Compute the time of impact for this pair of colliders,
-                    // and update the minimum if it's the earliest one so far.
-                if let Some(toi) = compute_ccd_toi(
+                    // Compute the time of impact for this pair of colliders. If it's the earliest
+                    // so far, record the details needed to clamp the body's normal motion and hand
+                    // the contact off to the discrete solver next frame.
+                    if let Some(hit) = compute_ccd_toi(
                         sweep_mode, &motion1, collider1, &motion2, collider2, min_toi,
                 ) {
-                    min_toi = toi;
+                        min_toi = hit.time_of_impact;
+
+                        // World-space contact normal, outward from the fast body's collider toward
+                        // the obstacle at the time of impact.
+                        let normal: Vector =
+                            motion1.position_at_time(hit.time_of_impact).rotation * hit.normal1;
+
+                        best_impact = Some(CcdImpact {
+                            normal,
+                            collider1: collider_entity,
+                            collider2: collider_entity2,
+                            body2: proxy.body,
+                            // The additional speculative distance only needs to span the gap
+                            // the fast contact opens. The body's max travel is a safe upper bound
+                            // that the fast-body test already computed. The narrow phase has a more
+                            // elaborate velocity test that decides whether to actually keep the contact.
+                            distance: max_motion,
+                        });
                     }
 
                     true
@@ -660,23 +742,28 @@ fn solve_continuous(
         }
 
         // Record the minimum time of impact as a fraction of the timestep.
-        record(min_toi * inv_dt);
+        record(min_toi * inv_dt, best_impact);
     });
 
-    // Collect the per-thread results.
-    let results: Vec<CcdResult> = thread_local_results
+    // Collect the per-thread results and sort them for determinism.
+    let mut results: Vec<CcdResult> = thread_local_results
         .into_iter()
         .flat_map(|cell| cell.into_inner())
         .collect();
+    results.sort_unstable_by_key(|result| result.entity);
 
-    // Finally, apply the time-of-impact corrections by scaling the pose deltas of each solver body.
+    // Apply the time-of-impact corrections to each solver body,
+    // and then hand each fast contact off to the discrete solver
+    // so it resolves the velocity next timestep.
     if !results.is_empty() {
         let mut apply = bodies.p1();
-        for CcdResult { entity, fraction } in results {
-            let Ok(mut solver_body) = apply.get_mut(entity) else {
-                continue;
-            };
-
+        for CcdResult {
+            entity,
+            fraction,
+            impact,
+        } in results
+        {
+            if let Ok(mut solver_body) = apply.get_mut(entity) {
             // Note: This flag is only retained for debug rendering.
             solver_body.flags.insert(SolverBodyFlags::IS_FAST);
 
@@ -687,9 +774,59 @@ fn solve_continuous(
                     .insert(SolverBodyFlags::HAD_TIME_OF_IMPACT);
 
                 let t = fraction.min(1.0);
+
+                    if let Some(impact) = &impact {
+                        // Clamp the translation into the obstacle while leaving tangential sliding
+                        // intact, so a body that is mostly sliding along the surface is not frozen.
+                        let approach_translation = solver_body.delta_position.dot(impact.normal);
+                        if approach_translation > 0.0 {
+                            solver_body.delta_position -=
+                                (1.0 - t) * approach_translation * impact.normal;
+                        }
+
+                        // Advance the rotation only up to the time of impact.
+                        solver_body.delta_rotation =
+                            Rotation::IDENTITY.nlerp(solver_body.delta_rotation, t);
+                    } else {
+                        // No contact normal available for some reason.
+                        // Fall back to scaling the whole delta.
                 solver_body.delta_position *= t;
                 solver_body.delta_rotation =
                     Rotation::IDENTITY.nlerp(solver_body.delta_rotation, t);
+                    }
+                }
+            }
+
+            // Ensure a contact pair exists and request an additional speculative distance.
+            // This helps ensure the contact is detected by the discrete solver next timestep,
+            // even if the bodies ended up separated at the TOI impact.
+            //
+            // This is typically only relevant for dynamic-dynamic and dynamic-kinematic impacts
+            // where the final pose of the other shape ended up separated from the TOI impact point.
+            // In the `tumbler` example, this manifested as dynamic boxes continuously having a TOI impact
+            // against the spinning container, being effectively frozen in place with no proper
+            // velocity correction, which also caused significant overlap with other boxes.
+            if fraction < 1.0
+                && let Some(impact) = impact
+            {
+                if let Some((_edge, pair)) =
+                    contact_graph.get_mut(impact.collider1, impact.collider2)
+                {
+                    pair.ccd_speculative_distance =
+                        pair.ccd_speculative_distance.max(impact.distance);
+                } else {
+                    let mut edge = ContactEdge::new(impact.collider1, impact.collider2);
+                    edge.body1 = Some(entity);
+                    edge.body2 = impact.body2;
+                    let body1 = Some(entity);
+                    let body2 = impact.body2;
+                    let distance = impact.distance;
+                    contact_graph.add_edge_with(edge, |pair| {
+                        pair.body1 = body1;
+                        pair.body2 = body2;
+                        pair.ccd_speculative_distance = distance;
+                    });
+                }
             }
         }
     }
@@ -700,7 +837,7 @@ fn solve_continuous(
 /// Reconstructs the sweep of a single collider for the timestep from its [`SolverBody`] deltas,
 /// as a Parry [`NonlinearRigidMotion`] with per-second velocities.
 ///
-/// `collider_pos`/`collider_rot` are the collider's world pose at the start of the frame, and
+/// `collider_pos`/`collider_rot` are the collider's world pose at the start of the timestep, and
 /// `com_world` is its body's center of mass in world space. The body rotates about its center of
 /// mass, so this supports colliders offset from the body origin (i.e. child colliders).
 #[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
@@ -732,7 +869,7 @@ fn static_motion(pos: Position, rot: Rotation) -> NonlinearRigidMotion {
     NonlinearRigidMotion::constant_position(make_pose(pos, rot))
 }
 
-/// Computes the time of impact at which `motion1` (sweeping `collider1`) first touches
+/// Computes the [`ShapeCastHit`] at which `motion1` (sweeping `collider1`) first touches
 /// `motion2` (sweeping `collider2`), if any, using the specified `mode`.
 ///
 /// Returns `None` if no impact is found within `min_toi`.
@@ -744,11 +881,11 @@ fn compute_ccd_toi(
     motion2: &NonlinearRigidMotion,
     collider2: &Collider,
     min_toi: Scalar,
-) -> Option<Scalar> {
+) -> Option<ShapeCastHit> {
     let shape1 = collider1.shape_scaled();
     let shape2 = collider2.shape_scaled();
 
-    let toi = if mode == SweepMode::Linear {
+    let hit = if mode == SweepMode::Linear {
         cast_shapes(
             &motion1.start,
             motion1.linvel,
@@ -763,7 +900,6 @@ fn compute_ccd_toi(
             },
         )
         .ok()??
-        .time_of_impact
     } else {
         cast_shapes_nonlinear(
         motion1,
@@ -775,8 +911,7 @@ fn compute_ccd_toi(
                 false,
             )
         .ok()??
-        .time_of_impact
     };
 
-    (toi > 0.0 && toi < min_toi).then_some(toi)
+    (hit.time_of_impact > 0.0 && hit.time_of_impact < min_toi).then_some(hit)
 }
