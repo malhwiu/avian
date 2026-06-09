@@ -688,10 +688,10 @@ impl ColliderAabbMargin {
     /// to move by a small amount without triggering a tree adjustment.
     ///
     /// [`PhysicsLengthUnit`]: crate::dynamics::solver::PhysicsLengthUnit
-    pub const MAX: Scalar = 0.2;
+    pub const MAX: Scalar = 0.05;
 
     /// For small shapes, the margin is limited to this fraction of the shape's maximum extent.
-    pub const FRACTION: Scalar = 0.5;
+    pub const FRACTION: Scalar = 0.125;
 
     /// Computes the AABB margin for a collider with the given `max_extent` and [`PhysicsLengthUnit`].
     ///
