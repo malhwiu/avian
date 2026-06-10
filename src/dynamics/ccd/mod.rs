@@ -494,11 +494,8 @@ struct CcdResult {
     impact: Option<CcdImpact>,
 }
 
-/// Details of the earliest time-of-impact for a fast body, used to clamp the body's normal
-/// motion this frame and to hand the contact off to the discrete solver next frame.
+/// Details of the earliest time-of-impact for a fast body.
 struct CcdImpact {
-    /// World-space contact normal, pointing from the fast body toward the obstacle.
-    normal: Vector,
     /// The fast body's colliding collider.
     collider1: Entity,
     /// The obstacle's colliding collider.
@@ -724,14 +721,7 @@ fn solve_continuous(
                         sweep_mode, &motion1, collider1, &motion2, collider2, min_toi,
                 ) {
                         min_toi = hit.time_of_impact;
-
-                        // World-space contact normal, outward from the fast body's collider toward
-                        // the obstacle at the time of impact.
-                        let normal: Vector =
-                            motion1.position_at_time(hit.time_of_impact).rotation * hit.normal1;
-
                         best_impact = Some(CcdImpact {
-                            normal,
                             collider1: collider_entity,
                             collider2: collider_entity2,
                             body2: proxy.body,
@@ -759,18 +749,20 @@ fn solve_continuous(
         .collect();
     results.sort_unstable_by_key(|result| result.entity);
 
-    // Apply the time-of-impact corrections to each solver body,
-    // and then hand each fast contact off to the discrete solver
-    // so it resolves the velocity next timestep.
+    // Mark fast bodies and apply any time-of-impact corrections.
+    //
+    // Also ensure a contact pair exists for any impacts that were found,
+    // and request a speculative distance to help ensure the contact is detected
+    // by the discrete solver next timestep,
     if !results.is_empty() {
-        let mut apply = bodies.p1();
+        let mut body_query = bodies.p1();
         for CcdResult {
             entity,
             fraction,
             impact,
         } in results
         {
-            if let Ok(mut solver_body) = apply.get_mut(entity) {
+            if let Ok(mut solver_body) = body_query.get_mut(entity) {
             // Note: This flag is only retained for debug rendering.
             solver_body.flags.insert(SolverBodyFlags::IS_FAST);
 
@@ -782,25 +774,10 @@ fn solve_continuous(
 
                 let t = fraction.min(1.0);
 
-                    if let Some(impact) = &impact {
-                        // Clamp the translation into the obstacle while leaving tangential sliding
-                        // intact, so a body that is mostly sliding along the surface is not frozen.
-                        let approach_translation = solver_body.delta_position.dot(impact.normal);
-                        if approach_translation > 0.0 {
-                            solver_body.delta_position -=
-                                (1.0 - t) * approach_translation * impact.normal;
-                        }
-
-                        // Advance the rotation only up to the time of impact.
-                        solver_body.delta_rotation =
-                            Rotation::IDENTITY.nlerp(solver_body.delta_rotation, t);
-                    } else {
-                        // No contact normal available for some reason.
-                        // Fall back to scaling the whole delta.
+                    // Scale back the body's motion to the time of impact.
                 solver_body.delta_position *= t;
                 solver_body.delta_rotation =
                     Rotation::IDENTITY.nlerp(solver_body.delta_rotation, t);
-                    }
                 }
             }
 
