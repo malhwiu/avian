@@ -16,7 +16,7 @@ jobs:
         name: Check Minimal Features
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
             - uses: dtolnay/rust-toolchain@stable
             - uses: Swatinem/rust-cache@v2
               with:
@@ -32,7 +32,7 @@ jobs:
         name: Check Documentation
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
             - uses: dtolnay/rust-toolchain@stable
             - uses: Swatinem/rust-cache@v2
               with:
@@ -54,7 +54,7 @@ jobs:
         runs-on: ${{ matrix.os }}
         timeout-minutes: 60
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
             - uses: dtolnay/rust-toolchain@nightly
               with:
                   components: llvm-tools-preview
@@ -109,7 +109,7 @@ jobs:
         name: Lints
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
             - uses: dtolnay/rust-toolchain@stable
               with:
                   components: rustfmt, clippy
