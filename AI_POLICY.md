@@ -4,6 +4,7 @@ The use of AI assistance, especially in the form of generative AI, continues to 
 
 - No LLM-generated commits (ex: Claude commits). This is automatically enforced by a CI check.
 - No LLM-generated communication (ex: issues, PR descriptions, bug reports), except for translation or accessibility purposes.
+- No AI-generated art or assets.
 - You, as a member of the community, are responsible for every line of code and comment you contribute. This includes all design and implementation decisions.
 - You must fully understand your contributions, and be able to hold a conversation about their contents with fellow contributors.
 - Contributions should be largely consistent with existing project conventions. Exhibiting multiple clear signs of LLM output is a red flag, but please do not start witch hunts. Some people just have similar writing styles.
