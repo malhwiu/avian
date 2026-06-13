@@ -272,7 +272,7 @@ impl Plugin for CcdPlugin {
 ///
 /// Only dynamic bodies support CCD. Fast-moving dynamic bodies are swept against static and
 /// kinematic bodies automatically, even without this component (see the
-/// [module-level documentation](self)). Add `CcdSettings` to:
+/// [module-level documentation](self)). Add `SweptCcd` to:
 ///
 /// - also sweep the body against other **dynamic** bodies (via [`include_dynamic`](Self::include_dynamic))
 /// - choose the [sweep mode](SweepMode) (via [`mode`](Self::mode))
@@ -310,7 +310,7 @@ impl Plugin for CcdPlugin {
 ///     // and is additionally swept against other dynamic bodies.
 ///     commands.spawn((
 ///         RigidBody::Dynamic,
-///         CcdSettings::default()
+///         SweptCcd::default()
 ///             .with_mode(SweepMode::Linear)
 ///             .with_include_dynamic(true),
 #[cfg_attr(feature = "2d", doc = "        LinearVelocity(Vec2::X * 100.0),")]
@@ -323,7 +323,7 @@ impl Plugin for CcdPlugin {
 /// ```
 #[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
 #[reflect(Component, Debug, Default, PartialEq)]
-pub struct CcdSettings {
+pub struct SweptCcd {
     /// Whether CCD is enabled for this body.
     ///
     /// Setting this to `false` disables CCD for the body entirely.
@@ -366,14 +366,14 @@ pub struct CcdSettings {
     pub include_dynamic: bool,
 }
 
-impl Default for CcdSettings {
+impl Default for SweptCcd {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl CcdSettings {
-    /// Creates a [`CcdSettings`] configuration with default settings: CCD enabled,
+impl SweptCcd {
+    /// Creates a [`SweptCcd`] configuration with default settings: CCD enabled,
     /// [`SweepMode::NonLinear`], swept against static and kinematic bodies but not dynamic bodies.
     #[inline]
     pub const fn new() -> Self {
@@ -445,7 +445,7 @@ pub enum SweepMode {
 /// and large margins can cause [ghost collisions](self#caveats-of-speculative-collision).
 /// The [`max_distance`](Self::max_distance) property bounds the margin to mitigate this.
 ///
-/// Bodies with this component oftentimes also enable [`CcdSettings::include_dynamic`].
+/// Bodies with this component oftentimes also enable [`SweptCcd::include_dynamic`].
 ///
 /// [`contact_tolerance`]: NarrowPhaseConfig::contact_tolerance
 ///
@@ -464,7 +464,7 @@ pub enum SweepMode {
 #[cfg_attr(feature = "2d", doc = "        Collider::circle(0.1),")]
 #[cfg_attr(feature = "3d", doc = "        Collider::sphere(0.1),")]
 ///         SpeculativeCcd::new(2.0),
-///         CcdSettings::default().with_include_dynamic(true),
+///         SweptCcd::default().with_include_dynamic(true),
 ///     ));
 /// }
 /// ```
@@ -519,7 +519,7 @@ struct CcdBodyQuery {
     com: &'static ComputedCenterOfMass,
     colliders: &'static RigidBodyColliders,
     body_radii: &'static BodyRadii,
-    ccd: Option<&'static CcdSettings>,
+    ccd: Option<&'static SweptCcd>,
 }
 
 /// A time-of-impact result for a single fast body.
