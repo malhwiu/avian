@@ -74,7 +74,7 @@ pub mod prelude {
     pub use super::solver::xpbd::XpbdSolverPlugin;
     #[expect(deprecated)]
     pub use super::{
-        ccd::{CcdPlugin, CcdSettings, SpeculativeAabb, SweepMode},
+        ccd::{CcdPlugin, CcdSettings, SpeculativeCcd, SweepMode},
         integrator::{
             CustomPositionIntegration, CustomVelocityIntegration, Gravity, IntegratorPlugin,
         },

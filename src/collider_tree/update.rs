@@ -664,7 +664,7 @@ fn update_solver_body_aabbs<C: AnyCollider>(
             &LinearVelocity,
             &AngularVelocity,
             &RigidBodyColliders,
-            Has<SpeculativeAabb>,
+            Option<&SpeculativeCcd>,
         ),
         With<SolverBody>,
     >,
@@ -718,7 +718,7 @@ fn update_solver_body_aabbs<C: AnyCollider>(
     let collider_query = colliders.p0();
 
     body_query.par_iter().for_each(
-        |(rb_pos, center_of_mass, lin_vel, ang_vel, body_colliders, speculative_aabb)| {
+        |(rb_pos, center_of_mass, lin_vel, ang_vel, body_colliders, speculative_ccd)| {
             for collider_entity in body_colliders.iter() {
                 let Ok((
                     collider,
@@ -739,7 +739,7 @@ fn update_solver_body_aabbs<C: AnyCollider>(
                 let context = ColliderContext::new(collider_entity, &*collider_context);
                 let growth = Vector::splat(contact_tolerance + collision_margin);
 
-                *aabb = if speculative_aabb {
+                *aabb = if let Some(max_distance) = speculative_ccd.map(|s| s.max_distance) {
                     // Opt-in velocity-expanded AABB: sweep the collider from its current pose to
                     // where it would be next frame, so the broad phase and swept CCD can predict
                     // contacts ahead. Note that this is only really needed by CCD for cases like
@@ -754,7 +754,8 @@ fn update_solver_body_aabbs<C: AnyCollider>(
                     #[cfg(feature = "3d")]
                     let vel = lin_vel.0 + ang_vel.0.cross(offset);
 
-                    let movement = vel * delta_secs;
+                    // Expand the AABB along the velocity, but no further than the speculative margin.
+                    let movement = (vel * delta_secs).clamp_length_max(max_distance);
 
                     #[cfg(feature = "2d")]
                     let end_rot = *rot * Rotation::radians(ang_vel.0 * delta_secs);
@@ -767,7 +768,9 @@ fn update_solver_body_aabbs<C: AnyCollider>(
                         .swept_aabb_with_context(pos.0, *rot, pos.0 + movement, end_rot, context)
                         .grow(growth)
                 } else {
-                    collider.aabb_with_context(pos.0, *rot, context).grow(growth)
+                    collider
+                        .aabb_with_context(pos.0, *rot, context)
+                        .grow(growth)
                 };
 
                 // Recompute the cached AABB margin if the collider shape changed.

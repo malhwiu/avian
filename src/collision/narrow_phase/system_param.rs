@@ -54,6 +54,7 @@ struct RigidBodyQuery {
     friction: Option<Read<Friction>>,
     restitution: Option<Read<Restitution>>,
     collision_margin: Option<Read<CollisionMargin>>,
+    speculative_ccd: Option<Read<SpeculativeCcd>>,
 }
 
 /// A system parameter for managing the narrow phase.
@@ -434,7 +435,9 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
     ) where
         for<'w, 's> SystemParamItem<'w, 's, H>: CollisionHooks,
     {
-        let contact_tolerance = self.length_unit.0 * self.config.contact_tolerance;
+        let length_unit = self.length_unit.0;
+        let contact_tolerance = length_unit * self.config.contact_tolerance;
+        let inv_delta_secs = delta_secs.recip();
 
         // Contact bit vecs must be sized based on the full contact capacity,
         // not the number of active contact pairs, because pair indices
@@ -500,7 +503,7 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
             // An extra speculative distance requested for this timestep.
             // This can be used to ensure that TOI impacts are handled by the discrete solver,
             // or more generally for speculative contacts.
-            let speculative_distance = core::mem::take(&mut contacts.speculative_distance);
+            let mut speculative_distance = core::mem::take(&mut contacts.speculative_distance);
 
             // Check if the AABBs of the colliders still overlap and the contact pair is valid.
             let overlap = collider1.enlarged_aabb.intersects(
@@ -536,6 +539,7 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                     ang_vel1,
                     rb_friction1,
                     rb_collision_margin1,
+                    speculative_ccd1,
                 ) = body1_bundle
                     .as_ref()
                     .map(|body| {
@@ -547,6 +551,7 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                             body.angular_velocity.0,
                             body.friction,
                             body.collision_margin,
+                            body.speculative_ccd.copied(),
                         )
                     })
                     .unwrap_or_default();
@@ -558,6 +563,7 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                     ang_vel2,
                     rb_friction2,
                     rb_collision_margin2,
+                    speculative_ccd2,
                 ) = body2_bundle
                     .as_ref()
                     .map(|body| {
@@ -569,6 +575,7 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                             body.angular_velocity.0,
                             body.friction,
                             body.collision_margin,
+                            body.speculative_ccd.copied(),
                         )
                     })
                     .unwrap_or_default();
@@ -642,10 +649,31 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
                 // at each contact point for restitution and speculative contact pruning.
                 let relative_linear_velocity = lin_vel2 - lin_vel1;
 
+                // Compute the effective speculative margin from the opt-in `SpeculativeCcd` component.
+                let max_distance1 = speculative_ccd1.map_or(0.0, |s| s.max_distance);
+                let max_distance2 = speculative_ccd2.map_or(0.0, |s| s.max_distance);
+
+                if max_distance1 != 0.0 || max_distance2 != 0.0 {
+                    // Clamp each body's contribution to its maximum speculative distance.
+                    let clamped_vel1 = if max_distance1 < Scalar::MAX {
+                        lin_vel1.clamp_length_max(max_distance1 * inv_delta_secs)
+                    } else {
+                        lin_vel1
+                    };
+                    let clamped_vel2 = if max_distance2 < Scalar::MAX {
+                        lin_vel2.clamp_length_max(max_distance2 * inv_delta_secs)
+                    } else {
+                        lin_vel2
+                    };
+
+                    // The margin is how far the bodies are expected to move relative to each other.
+                    let margin = (clamped_vel2 - clamped_vel1).length() * delta_secs;
+                    speculative_distance = margin.max(speculative_distance).max(contact_tolerance);
+                }
+
                 // The maximum distance at which contacts are detected.
-                // At least as large as the contact tolerance.
-                let max_contact_distance =
-                    contact_tolerance + collision_margin_sum + speculative_distance;
+                // This is at least as large as the contact tolerance.
+                let max_contact_distance = collision_margin_sum + speculative_distance;
 
                 let was_touching = contacts.flags.contains(ContactPairFlags::TOUCHING);
 
@@ -707,9 +735,9 @@ impl<C: AnyCollider> NarrowPhase<'_, '_, C> {
 
                         // Keep the contact if (1) the separation distance is below the required threshold,
                         // or if (2) the bodies are expected to come into contact within the next time step.
-                        -point.penetration < contact_tolerance || {
+                        -point.penetration < speculative_distance || {
                             let delta_distance = normal_speed * delta_secs;
-                            delta_distance - point.penetration < contact_tolerance
+                            delta_distance - point.penetration < speculative_distance
                         }
                     });
 

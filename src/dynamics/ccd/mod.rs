@@ -347,7 +347,7 @@ pub struct CcdSettings {
     /// **Default**: [`SweepMode::NonLinear`]
     pub mode: SweepMode,
 
-    /// The fraction of a body's minimum CCD thickness it may travel in a frame before being
+    /// The fraction of a body's minimum CCD thickness it may travel in a timestep before being
     /// treated as a fast-moving body.
     ///
     /// This should typically be in the range `[0.0, 1.0]` to prevent tunneling.
@@ -355,7 +355,7 @@ pub struct CcdSettings {
     /// at the cost of more overhead as sweeps are performed even at lower speeds.
     ///
     /// **Default**: `0.5`
-    pub safety_factor: Scalar,
+    pub fast_threshold: Scalar,
 
     /// Whether the body is additionally swept against other dynamic bodies.
     ///
@@ -380,7 +380,7 @@ impl CcdSettings {
         Self {
             enabled: true,
             mode: SweepMode::NonLinear,
-            safety_factor: 0.5,
+            fast_threshold: 0.5,
             include_dynamic: false,
         }
     }
@@ -433,19 +433,21 @@ pub enum SweepMode {
     NonLinear,
 }
 
-/// A marker component that expands a body's [`ColliderAabb`] based on
-/// its velocity each timestep.
+/// A component that enables [speculative collision](self#speculative-collision)
+/// and velocity-expanded [AABBs](ColliderAabb) for a [dynamic](RigidBody::Dynamic) [`RigidBody`],
+/// allowing it to predict and react to contacts before they happen.
 ///
-/// By default, AABBs are kept tight, only expanded by a small fixed margin.
-/// The downside is that a fast body's AABB does not reach ahead along its path,
-/// so two fast-moving bodies approacing each other from different directions
-/// might not collide even with [CCD](self), because their swept shapes would not
-/// find each other. Adding this component works around the issue, at the cost of
-/// more broad phase collision tests due to the larger AABB.
+/// Without this component, a body still receives a small, fixed [`contact_tolerance`]
+/// and automatic [swept CCD](self#swept-ccd), but no velocity-based speculative margin
+/// or AABB expansion.
 ///
-/// It is only recommended to add this component to fast-moving bodies
-/// that should reliably collide with other fast-moving bodies.
-/// Oftentimes these entities also have [`CcdSettings::include_dynamic`] enabled.
+/// Speculative collision can be cheaper than swept CCD, but speculative contacts are approximations,
+/// and large margins can cause [ghost collisions](self#caveats-of-speculative-collision).
+/// The [`max_distance`](Self::max_distance) property bounds the margin to mitigate this.
+///
+/// Bodies with this component oftentimes also enable [`CcdSettings::include_dynamic`].
+///
+/// [`contact_tolerance`]: NarrowPhaseConfig::contact_tolerance
 ///
 /// # Example
 ///
@@ -455,22 +457,58 @@ pub enum SweepMode {
 /// use bevy::prelude::*;
 ///
 /// fn setup(mut commands: Commands) {
-///     // A fast body whose AABB is expanded by its velocity
-///     // and is also swept against other dynamic bodies for CCD.
+///     // A fast body that predicts contacts up to 2 units ahead based on its velocity,
+///     // expands its AABB accordingly, and is also swept against other dynamic bodies.
 ///     commands.spawn((
 ///         RigidBody::Dynamic,
 #[cfg_attr(feature = "2d", doc = "        Collider::circle(0.1),")]
 #[cfg_attr(feature = "3d", doc = "        Collider::sphere(0.1),")]
-///         SpeculativeAabb,
+///         SpeculativeCcd::new(2.0),
 ///         CcdSettings::default().with_include_dynamic(true),
 ///     ));
 /// }
 /// ```
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
 #[reflect(Component, Debug, Default, PartialEq)]
-pub struct SpeculativeAabb;
+#[doc(alias = "SpeculativeMargin")]
+pub struct SpeculativeCcd {
+    /// The maximum distance at which [speculative contacts](self#speculative-collision)
+    /// are generated for this body, and the maximum distance its [`ColliderAabb`] is
+    /// expanded along its velocity each timestep.
+    ///
+    /// Larger values predict contacts further ahead, at the cost of more broad phase work
+    /// and a higher risk of [ghost collisions](self#caveats-of-speculative-collision).
+    /// A value of `0.0` effectively disables speculative collision for this body.
+    ///
+    /// **Default**: [`Scalar::MAX`] (unbounded)
+    pub max_distance: Scalar,
+}
 
-/// Read-only [`SolverBody`] motion data used to reconstruct a body's per-frame sweep.
+impl Default for SpeculativeCcd {
+    fn default() -> Self {
+        Self::MAX
+    }
+}
+
+impl SpeculativeCcd {
+    /// An unbounded speculative margin. Speculative contacts are generated as far ahead
+    /// as the body's velocity reaches, and the AABB is expanded by the full per-timestep motion.
+    pub const MAX: Self = Self {
+        max_distance: Scalar::MAX,
+    };
+
+    /// A zero speculative margin. Disables speculative collision and velocity-based
+    /// AABB expansion for this body.
+    pub const ZERO: Self = Self { max_distance: 0.0 };
+
+    /// Creates a [`SpeculativeCcd`] configuration with the given maximum speculative distance.
+    #[inline]
+    pub const fn new(max_distance: Scalar) -> Self {
+        Self { max_distance }
+    }
+}
+
+/// Read-only [`SolverBody`] motion data used to reconstruct a body's per-timestep sweep.
 #[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 #[derive(QueryData)]
 struct CcdBodyQuery {
@@ -588,8 +626,8 @@ fn solve_continuous(
         let max_motion = max_delta_position.max(max_velocity * delta_secs);
 
         // Check if the body moved more than the threshold fraction of its minimum thickness.
-        // This way, CCD is only performed for bodies that are actually at risk of tunneling.
-        if max_motion <= ccd.safety_factor * min_thickness {
+        // CCD is only performed for bodies that are actually at risk of tunneling or deep overlap.
+        if max_motion <= ccd.fast_threshold * min_thickness {
             // Not a fast body, so no CCD is needed.
             return;
         }

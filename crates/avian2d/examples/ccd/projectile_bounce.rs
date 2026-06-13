@@ -8,7 +8,7 @@
 //! One problem with CCD for dynamic-dynamic pairs is that because the AABBs
 //! are typically tight, a sweep query for one body would miss the other body entirely
 //! if the other body is not already in the path of the sweep. Avian solves this
-//! with an opt-in [`SpeculativeAabb`] component that expands the body's AABB based on
+//! with an opt-in [`SpeculativeCcd`] component that expands the body's AABB based on
 //! its velocity, allowing the sweeps of both bodies to find each other and trigger CCD.
 //!
 //! Because this can lead to more contact pairs being generated in the broad phase,
@@ -72,9 +72,9 @@ fn setup_scene(
             LinearVelocity(velocity),
             // Sweep against other dynamic bodies.
             CcdSettings::default().with_include_dynamic(true),
-            // Enable velocity-based AABB expansion so that the two projectiles
-            // can find each other with their sweeps and trigger CCD.
-            SpeculativeAabb,
+            // Enable speculative CCD and therefore AABB expansion so that
+            // the two projectiles can find each other with swept CCD.
+            SpeculativeCcd::default(),
             Mesh2d(mesh.clone()),
             MeshMaterial2d(materials.add(color)),
         )
