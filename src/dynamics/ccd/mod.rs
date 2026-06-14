@@ -19,9 +19,9 @@
 //!     <text x="150" y="325" style="fill: #b4b4b4; font: 18px monospace; text-anchor: middle;">Discrete</text>
 //! </svg>
 //!
-//! **Continuous Collision Detection** (CCD) aims to prevent tunneling and deep overlap.
-//! Currently, two approaches are supported: [Swept CCD](#swept-ccd) and
-//! [Speculative Collision](#speculative-collision). Swept CCD is performed for fast-moving
+//! **Continuous Collision Detection (CCD)** aims to prevent tunneling and deep overlap.
+//! Currently, two approaches are supported: [swept CCD](#swept-ccd) and
+//! [speculative collision](#speculative-collision). Swept CCD is performed for fast-moving
 //! dynamic bodies *by default*, and can be configured using the [`SweptCcd`] component,
 //! while speculative collision is fully opt-in via the [`SpeculativeCcd`] component.
 //!
@@ -236,7 +236,7 @@ use parry::query::{
 #[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 use thread_local::ThreadLocal;
 
-/// A plugin for [Continuous Collision Detection](self).
+/// A plugin for [Continuous Collision Detection (CCD)](self).
 pub struct CcdPlugin;
 
 impl Plugin for CcdPlugin {
@@ -251,7 +251,7 @@ impl Plugin for CcdPlugin {
     }
 }
 
-/// A component that configures [Swept Continuous Collision Detection (CCD)](self#swept-ccd)
+/// A component that configures [swept Continuous Collision Detection (CCD)](self#swept-ccd)
 /// for a [dynamic](RigidBody::Dynamic) [`RigidBody`].
 ///
 /// By default, swept CCD is performed automatically for fast-moving dynamic bodies,
@@ -391,7 +391,7 @@ impl SweptCcd {
 }
 
 /// A bitmask determining which [`RigidBody`] types a [`SweptCcd`] body is swept against
-/// during [Continuous Collision Detection](self).
+/// during [Continuous Collision Detection (CCD)](self).
 ///
 /// If [empty](Self::EMPTY), CCD is disabled for the body entirely.
 #[repr(transparent)]
@@ -431,7 +431,7 @@ impl Default for CcdFilter {
     }
 }
 
-/// The algorithm used for sweeps during [Continuous Collision Detection](self#swept-ccd).
+/// The algorithm used for sweeps during [Continuous Collision Detection (CCD)](self#swept-ccd).
 ///
 /// If two entities with different sweep modes collide, [`SweepMode::NonLinear`] is preferred.
 ///
@@ -594,6 +594,20 @@ fn solve_continuous(
         return;
     }
     let inv_dt = 1.0 / delta_secs;
+
+    // Avian's approach to CCD is heavily inspired by Box2D by Erin Catto,
+    // with some notable differences (as of Box2D 3.1.0):
+    //
+    // - We perform sweeps against both static *and* kinematic bodies by default.
+    // - We support sweeps between two dynamic bodies (CCD between "bullets").
+    // - We use a bitmask to configure which body types fast bodies are swept against.
+    // - We additionally support opt-in Bepu-style speculative collision with a configurable margin.
+    // - We run swept CCD before applying solver body deltas. This avoids having to store
+    //   previous transforms.
+    // - We create contact edges immediately at the time of impact, and request an additional
+    //   speculative distance for the narrow phase if needed to ensure the contact is handled.
+    //   This fixed some pathological cases with CCD against moving objects.
+    // - Miscellaneous differences in structure, naming, and configuration.
 
     // Per-thread time-of-impact fractions (in `[0, 1]`) for each fast body. A fraction of `1.0`
     // means the body is fast but no impact was found.
@@ -822,7 +836,7 @@ fn solve_continuous(
     //
     // Also ensure a contact pair exists for any impacts that were found,
     // and request a speculative distance to help ensure the contact is detected
-    // by the discrete solver next timestep,
+    // by the discrete solver next timestep.
     if !results.is_empty() {
         let mut body_query = bodies.p1();
         for CcdResult {

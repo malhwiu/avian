@@ -136,8 +136,8 @@
 //! - [Lock translational and rotational axes](LockedAxes)
 //! - [Dominance]
 //! - [Continuous Collision Detection (CCD)](dynamics::ccd)
-//!     - [Speculative collision](dynamics::ccd#speculative-collision)
 //!     - [Swept CCD](dynamics::ccd#swept-ccd)
+//!     - [Speculative collision](dynamics::ccd#speculative-collision)
 //! - [`Transform` interpolation and extrapolation](PhysicsInterpolationPlugin)
 //! - [Temporarily disabling a rigid body](RigidBodyDisabled)
 //! - [Automatic deactivation with sleeping](Sleeping)
