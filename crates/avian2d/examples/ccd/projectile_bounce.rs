@@ -70,10 +70,10 @@ fn setup_scene(
             Restitution::new(1.0).with_combine_rule(CoefficientCombine::Max),
             Friction::ZERO.with_combine_rule(CoefficientCombine::Min),
             LinearVelocity(velocity),
-            // Sweep against other dynamic bodies.
-            CcdSettings::default().with_include_dynamic(true),
+            // Sweep against other dynamic bodies too.
+            SweptCcd::default().with_filter(CcdFilter::ALL),
             // Enable speculative CCD and therefore AABB expansion so that
-            // the two projectiles can find each other with swept CCD.
+            // the two projectiles can find each other.
             SpeculativeCcd::default(),
             Mesh2d(mesh.clone()),
             MeshMaterial2d(materials.add(color)),

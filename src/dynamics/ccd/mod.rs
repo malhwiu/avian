@@ -314,7 +314,7 @@ pub struct SweptCcd {
     /// fast bodies are swept against static and kinematic bodies by default,
     /// but not against other dynamic bodies.
     ///
-    /// If the filter is [empty](CcdFilter::EMPTY), CCD is disabled for this body entirely.
+    /// If the filter is [empty](CcdFilter::NONE), CCD is disabled for this body entirely.
     /// This can improve performance but can lead to tunneling. Disabling CCD should rarely
     /// be necessary, as it is only performed for fast-moving bodies, and should have a minimal
     /// performance impact for most applications.
@@ -367,7 +367,7 @@ impl SweptCcd {
 
     /// Sets the [`CcdFilter`] determining which body types this body is swept against.
     ///
-    /// An [empty](CcdFilter::EMPTY) filter disables CCD for this body entirely.
+    /// An [empty](CcdFilter::NONE) filter disables CCD for this body entirely.
     #[inline]
     pub const fn with_filter(mut self, filter: CcdFilter) -> Self {
         self.filter = filter;
@@ -393,7 +393,7 @@ impl SweptCcd {
 /// A bitmask determining which [`RigidBody`] types a [`SweptCcd`] body is swept against
 /// during [Continuous Collision Detection (CCD)](self).
 ///
-/// If [empty](Self::EMPTY), CCD is disabled for the body entirely.
+/// If [empty](Self::NONE), CCD is disabled for the body entirely.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 #[reflect(Debug, Default, PartialEq)]
@@ -403,10 +403,13 @@ bitflags::bitflags! {
     impl CcdFilter: u8 {
         /// Sweep against other dynamic bodies.
         const DYNAMIC = 1 << 0;
+
         /// Sweep against kinematic bodies.
         const KINEMATIC = 1 << 1;
+
         /// Sweep against static bodies.
         const STATIC = 1 << 2;
+
         /// Sweep against standalone colliders (colliders with no rigid body).
         const STANDALONE = 1 << 3;
 
@@ -421,7 +424,7 @@ bitflags::bitflags! {
             | Self::STANDALONE.bits();
 
         /// Sweep against no body types, effectively disabling CCD for this body.
-        const EMPTY = 0;
+        const NONE = 0;
     }
 }
 
@@ -516,13 +519,13 @@ impl Default for SpeculativeCcd {
 }
 
 impl SpeculativeCcd {
-    /// An unbounded speculative margin. Speculative contacts are generated as far ahead
-    /// as the body's velocity reaches, and the AABB is expanded by the full per-timestep motion.
-    pub const MAX: Self = Self::new(Scalar::MAX);
-
     /// A zero speculative margin. Disables speculative collision and velocity-based
     /// AABB expansion for this body.
     pub const ZERO: Self = Self::new(0.0);
+
+    /// An unbounded speculative margin. Speculative contacts are generated as far ahead
+    /// as the body's velocity reaches, and the AABB is expanded by the full per-timestep motion.
+    pub const MAX: Self = Self::new(Scalar::MAX);
 
     /// Creates a [`SpeculativeCcd`] configuration with the given maximum speculative distance.
     #[inline]
