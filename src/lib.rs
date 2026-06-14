@@ -718,8 +718,8 @@ impl PhysicsPlugins {
     ///
     /// Note that this is *not* used to scale forces or any other user-facing inputs or outputs.
     /// Instead, the value is only used to scale some internal length-based tolerances, such as
-    /// [`SleepingThreshold::linear`] and [`NarrowPhaseConfig::default_speculative_margin`],
-    /// as well as the scale used for [debug rendering](PhysicsDebugPlugin).
+    /// [`SleepingThreshold::linear`] and [`NarrowPhaseConfig::contact_tolerance`], as well as
+    /// the scale used for [debug rendering](PhysicsDebugPlugin).
     ///
     /// Choosing the appropriate length unit can help improve stability and robustness.
     ///

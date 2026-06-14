@@ -21,9 +21,13 @@ use crate::{
 /// Size metrics associated with a [`RigidBody`] and its colliders.
 ///
 /// These can be used for various purposes, such as determining thresholds
-/// for Continuous Collision Detection (CCD), sleeping, and contact recycling.
+/// for [Continuous Collision Detection (CCD)][CCD], [sleeping], and contact recycling.
 ///
 /// The values are automatically computed and updated by the [`BodySizeMetricsPlugin`].
+///
+/// [`RigidBody`]: crate::dynamics::rigid_body::RigidBody
+/// [CCD]: crate::dynamics::ccd
+/// [sleeping]: crate::dynamics::sleeping
 #[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
 pub struct BodySizeMetrics {
     /// A conservative minimum thickness used by [Continuous Collision Detection (CCD)][CCD]

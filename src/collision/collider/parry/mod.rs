@@ -453,7 +453,7 @@ impl AnyCollider for Collider {
     }
 
     fn bounding_radius_with_context(&self, _context: ColliderContext<Self::Context>) -> Scalar {
-        let center_of_mass = self.center_of_mass();
+        let center_of_mass = self.center_of_mass().adjust_precision();
         self.max_distance_to_point(center_of_mass)
     }
 }

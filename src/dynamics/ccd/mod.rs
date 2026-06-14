@@ -242,6 +242,7 @@ pub struct CcdPlugin;
 impl Plugin for CcdPlugin {
     fn build(&self, app: &mut App) {
         // Get the `PhysicsSchedule`, and panic if it doesn't exist.
+        #[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
         let physics = app
             .get_schedule_mut(PhysicsSchedule)
             .expect("add PhysicsSchedule first");
@@ -549,6 +550,7 @@ struct CcdBodyQuery {
 }
 
 /// A time-of-impact result for a single fast body.
+#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 struct CcdResult {
     /// The fast body that was swept.
     entity: Entity,
@@ -559,6 +561,7 @@ struct CcdResult {
 }
 
 /// Details of the earliest time-of-impact for a fast body.
+#[cfg(any(feature = "parry-f32", feature = "parry-f64"))]
 struct CcdImpact {
     /// The fast body's colliding collider.
     collider1: Entity,
