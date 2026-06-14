@@ -359,7 +359,7 @@ pub struct SweptCcd {
     /// at the cost of more overhead as sweeps are performed even at lower speeds.
     ///
     /// **Default**: `0.5`
-    pub fast_threshold: Scalar,
+    pub threshold: Scalar,
 }
 
 impl Default for SweptCcd {
@@ -377,7 +377,7 @@ impl SweptCcd {
         Self {
             filter: CcdFilter::DEFAULT,
             mode: SweepMode::NonLinear,
-            fast_threshold: 0.5,
+            threshold: 0.5,
         }
     }
 
@@ -394,6 +394,14 @@ impl SweptCcd {
     #[inline]
     pub const fn with_mode(mut self, mode: SweepMode) -> Self {
         self.mode = mode;
+        self
+    }
+
+    /// Sets the fraction of this body's minimum CCD thickness it may travel in a timestep
+    /// before being treated as a fast-moving body.
+    #[inline]
+    pub const fn with_threshold(mut self, threshold: Scalar) -> Self {
+        self.threshold = threshold;
         self
     }
 }
@@ -660,7 +668,7 @@ fn solve_continuous(
 
         // Check if the body moved more than the threshold fraction of its minimum thickness.
         // CCD is only performed for bodies that are actually at risk of tunneling or deep overlap.
-        if max_motion <= ccd.fast_threshold * min_thickness {
+        if max_motion <= ccd.threshold * min_thickness {
             // Not a fast body, so no CCD is needed.
             return;
         }
