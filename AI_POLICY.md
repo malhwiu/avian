@@ -8,7 +8,7 @@ The use of AI assistance, especially in the form of generative AI, continues to 
 - You, as a member of the community, are responsible for every line of code and comment you contribute. This includes all design and implementation decisions.
 - You must fully understand your contributions, and be able to hold a conversation about their contents with fellow contributors.
 - Contributions should be largely consistent with existing project conventions. Exhibiting multiple clear signs of LLM output is a red flag, but please do not start witch hunts. Some people just have similar writing styles.
-- Use of LLMs in design, contributions, or communication should always be disclosed. LLM-powered tab autocompletion for trivial or mechanical edits and boilerplate requires no disclosure.
+- Use of LLMs in design, contributions, or communication should always be disclosed. LLM-powered tab autocompletion for trivial or mechanical edits requires no disclosure.
 - Maintainers reserve the right to close any issues or PRs on the premise of being LLM-generated. This is a subjective judgement call made on a case-by-case basis.
 
 In general, we do not police how contributions are made. What matters to us is the quality of contributions and communication surrounding them. This is a human community, and we do not tolerate or wish to interact with raw LLM output. Fellow humans who act in good faith and take accountability for their work are welcome.
