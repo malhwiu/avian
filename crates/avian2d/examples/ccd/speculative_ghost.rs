@@ -7,10 +7,14 @@
 //! an effectively infinite contact plane, even if the surface does not actually extend
 //! to intersect the body's path.
 //!
-//! Avian keeps the speculative contact distance very small and AABBs tight, and primarily relies
-//! on sweep-based CCD to prevent tunneling for fast-moving bodies. This avoids ghost collisions
-//! (except at *very* small distances; don't expect pixel-perfect collisions) while still
-//! preventing tunneling or deep overlaps for fast-moving bodies.
+//! Avian keeps the speculative contact distance very small and AABBs tight by default,
+//! and primarily relies on sweep-based CCD to prevent tunneling for fast-moving bodies.
+//! This avoids ghost collisions (except at *very* small distances), while still preventing
+//! tunneling or deep overlaps for fast-moving bodies.
+//!
+//! Avian does also support opt-in speculative collision with a larger speculative
+//! contact distance via the [`SpeculativeCcd`] component. If you add it, you will
+//! start seeing ghost collisions at high speeds again.
 //!
 //! This example is based on the SpeculativeGhost sample in Box2D.
 
@@ -80,6 +84,8 @@ fn setup_scene(
     commands.spawn((
         Name::new("Dynamic Box"),
         RigidBody::Dynamic,
+        // If you uncomment this, you will see a ghost collision
+        // SpeculativeCcd::default(),
         Collider::rectangle(0.5, 0.5),
         Transform::from_xyz(0.015, 2.515, 0.0),
         LinearVelocity(Vec2::new(0.1 * 3.1 * HZ, -0.1 * 3.1 * HZ)),
