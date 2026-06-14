@@ -11,6 +11,7 @@ https://github.com/avianphysics/avian/blob/main/AI_POLICY.md
 ## Solution
 
 - Describe the solution used to achieve the objective above.
+- Was AI used in design, code, or communication? In which ways?
 
 <!--
 Note: If your PR contains breaking changes relative to the latest release,
