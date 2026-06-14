@@ -272,11 +272,13 @@ impl Plugin for CcdPlugin {
 ///
 /// Only dynamic bodies support CCD. Fast-moving dynamic bodies are swept against static and
 /// kinematic bodies automatically, even without this component (see the
-/// [module-level documentation](self)). Add `SweptCcd` to:
+/// [module-level documentation](self)).
 ///
-/// - also sweep the body against other **dynamic** bodies (via [`include_dynamic`](Self::include_dynamic))
+/// Add `SweptCcd` to:
+///
+/// - control which body types this body is swept against during CCD (via [`filter`](Self::filter))
 /// - choose the [sweep mode](SweepMode) (via [`mode`](Self::mode))
-/// - disable CCD for the body (via [`enabled`](Self::enabled))
+/// - disable CCD for the body (via an empty [`filter`](Self::filter))
 ///
 /// The component has no effect on static or kinematic bodies.
 ///
@@ -312,7 +314,7 @@ impl Plugin for CcdPlugin {
 ///         RigidBody::Dynamic,
 ///         SweptCcd::default()
 ///             .with_mode(SweepMode::Linear)
-///             .with_include_dynamic(true),
+///             .with_filter(CcdFilter::ALL),
 #[cfg_attr(feature = "2d", doc = "        LinearVelocity(Vec2::X * 100.0),")]
 #[cfg_attr(feature = "3d", doc = "        LinearVelocity(Vec3::X * 100.0),")]
 #[cfg_attr(feature = "2d", doc = "        Collider::circle(0.1),")]
@@ -324,17 +326,19 @@ impl Plugin for CcdPlugin {
 #[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
 #[reflect(Component, Debug, Default, PartialEq)]
 pub struct SweptCcd {
-    /// Whether CCD is enabled for this body.
+    /// The types of bodies this body is swept against during CCD.
     ///
-    /// Setting this to `false` disables CCD for the body entirely.
-    /// This can improve performance but can lead to tunneling.
+    /// Each [`RigidBody`] type can be toggled independently. For example,
+    /// fast bodies are swept against static and kinematic bodies by default,
+    /// but not against other dynamic bodies.
     ///
-    /// Disabling CCD should rarely be necessary, as it is only performed
-    /// for fast-moving bodies, and should have a minimal performance impact
-    /// for most applications.
+    /// If the filter is [empty](CcdFilter::EMPTY), CCD is disabled for this body entirely.
+    /// This can improve performance but can lead to tunneling. Disabling CCD should rarely
+    /// be necessary, as it is only performed for fast-moving bodies, and should have a minimal
+    /// performance impact for most applications.
     ///
-    /// **Default**: `true`
-    pub enabled: bool,
+    /// **Default**: [`CcdFilter::DEFAULT`] (static and kinematic bodies)
+    pub filter: CcdFilter,
 
     /// The [sweep mode](SweepMode) used for this body.
     ///
@@ -356,14 +360,6 @@ pub struct SweptCcd {
     ///
     /// **Default**: `0.5`
     pub fast_threshold: Scalar,
-
-    /// Whether the body is additionally swept against other dynamic bodies.
-    ///
-    /// Dynamic bodies are always swept against static and kinematic bodies;
-    /// this only controls whether they are also swept against each other.
-    ///
-    /// **Default**: `false`
-    pub include_dynamic: bool,
 }
 
 impl Default for SweptCcd {
@@ -374,21 +370,23 @@ impl Default for SweptCcd {
 
 impl SweptCcd {
     /// Creates a [`SweptCcd`] configuration with default settings: CCD enabled,
-    /// [`SweepMode::NonLinear`], swept against static and kinematic bodies but not dynamic bodies.
+    /// [`SweepMode::NonLinear`], swept against static and kinematic bodies
+    /// but not other dynamic bodies.
     #[inline]
     pub const fn new() -> Self {
         Self {
-            enabled: true,
+            filter: CcdFilter::DEFAULT,
             mode: SweepMode::NonLinear,
             fast_threshold: 0.5,
-            include_dynamic: false,
         }
     }
 
-    /// Sets whether CCD is enabled for this body.
+    /// Sets the [`CcdFilter`] determining which body types this body is swept against.
+    ///
+    /// An [empty](CcdFilter::EMPTY) filter disables CCD for this body entirely.
     #[inline]
-    pub const fn with_enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
+    pub const fn with_filter(mut self, filter: CcdFilter) -> Self {
+        self.filter = filter;
         self
     }
 
@@ -398,16 +396,50 @@ impl SweptCcd {
         self.mode = mode;
         self
     }
+}
 
-    /// Sets whether the body is additionally swept against other dynamic bodies.
-    #[inline]
-    pub const fn with_include_dynamic(mut self, include_dynamic: bool) -> Self {
-        self.include_dynamic = include_dynamic;
-        self
+/// A bitmask determining which [`RigidBody`] types a [`SweptCcd`] body is swept against
+/// during [Continuous Collision Detection](self).
+///
+/// If [empty](Self::EMPTY), CCD is disabled for the body entirely.
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[reflect(Debug, Default, PartialEq)]
+pub struct CcdFilter(u8);
+
+bitflags::bitflags! {
+    impl CcdFilter: u8 {
+        /// Sweep against other dynamic bodies.
+        const DYNAMIC = 1 << 0;
+        /// Sweep against kinematic bodies.
+        const KINEMATIC = 1 << 1;
+        /// Sweep against static bodies.
+        const STATIC = 1 << 2;
+        /// Sweep against standalone colliders (colliders with no rigid body).
+        const STANDALONE = 1 << 3;
+
+        /// The default filter: sweep against static and kinematic bodies,
+        /// but not against other dynamic bodies or colliders without a body.
+        const DEFAULT = Self::KINEMATIC.bits() | Self::STATIC.bits();
+
+        /// Sweep against all body types and standalone colliders.
+        const ALL = Self::DYNAMIC.bits()
+            | Self::KINEMATIC.bits()
+            | Self::STATIC.bits()
+            | Self::STANDALONE.bits();
+
+        /// Sweep against no body types, effectively disabling CCD for this body.
+        const EMPTY = 0;
     }
 }
 
-/// The algorithm used for sweepds during [Continuous Collision Detection](self#swept-ccd).
+impl Default for CcdFilter {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
+/// The algorithm used for sweeps during [Continuous Collision Detection](self#swept-ccd).
 ///
 /// If two entities with different sweep modes collide, [`SweepMode::NonLinear`] is preferred.
 ///
@@ -445,7 +477,8 @@ pub enum SweepMode {
 /// and large margins can cause [ghost collisions](self#caveats-of-speculative-collision).
 /// The [`max_distance`](Self::max_distance) property bounds the margin to mitigate this.
 ///
-/// Bodies with this component oftentimes also enable [`SweptCcd::include_dynamic`].
+/// Bodies with this component oftentimes also sweep against other dynamic bodies
+/// via [`SweptCcd::filter`].
 ///
 /// [`contact_tolerance`]: NarrowPhaseConfig::contact_tolerance
 ///
@@ -464,7 +497,7 @@ pub enum SweepMode {
 #[cfg_attr(feature = "2d", doc = "        Collider::circle(0.1),")]
 #[cfg_attr(feature = "3d", doc = "        Collider::sphere(0.1),")]
 ///         SpeculativeCcd::new(2.0),
-///         SweptCcd::default().with_include_dynamic(true),
+///         SweptCcd::default().with_filter(CcdFilter::ALL),
 ///     ));
 /// }
 /// ```
@@ -591,7 +624,7 @@ fn solve_continuous(
 
         let ccd = fast.ccd.copied().unwrap_or_default();
 
-        if !ccd.enabled {
+        if ccd.filter.is_empty() {
             return;
         }
 
@@ -647,12 +680,20 @@ fn solve_continuous(
         let mode1 = ccd.mode;
         let body_com_world = fast.position.0 + fast.rotation * fast.com.0;
 
-        // Determine which trees to sweep against.
+        // Determine which trees to sweep against based on the body's filter.
         let trees_to_query: [Option<&ColliderTree>; 4] = [
-            Some(&trees.static_tree),
-            Some(&trees.standalone_tree),
-            Some(&trees.kinematic_tree),
-            ccd.include_dynamic.then_some(&trees.dynamic_tree),
+            ccd.filter
+                .contains(CcdFilter::DYNAMIC)
+                .then_some(&trees.dynamic_tree),
+            ccd.filter
+                .contains(CcdFilter::KINEMATIC)
+                .then_some(&trees.kinematic_tree),
+            ccd.filter
+                .contains(CcdFilter::STATIC)
+                .then_some(&trees.static_tree),
+            ccd.filter
+                .contains(CcdFilter::STANDALONE)
+                .then_some(&trees.standalone_tree),
         ];
 
         // The smallest time of impact found across all of the body's colliders.
