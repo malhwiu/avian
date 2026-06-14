@@ -1,6 +1,6 @@
 //! Common components and bundles for rigid bodies.
 
-pub mod body_radii;
+pub mod body_size_metrics;
 pub mod forces;
 pub mod mass_properties;
 pub mod sleeping;
@@ -277,7 +277,7 @@ use derive_more::From;
     ComputedCenterOfMass,
     // Used by continuous collision detection and other systems for computing
     // some thresholds based on the size metrics of the body.
-    BodyRadii,
+    BodySizeMetrics,
     // Required for local forces and acceleration.
     AccumulatedLocalAcceleration,
     // TODO: We can remove these pre-solve deltas once joints don't use XPBD.

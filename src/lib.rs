@@ -609,7 +609,7 @@ use prelude::*;
 /// | [`JointPlugin`]                   | A plugin for managing and initializing [joints](dynamics::joints). Does *not* include the actual joint solver.                                             |
 /// | [`MassPropertyPlugin`]            | Manages mass properties of dynamic [rigid bodies](RigidBody).                                                                                              |
 /// | [`ForcePlugin`]                   | Manages and applies external forces, torques, and acceleration for rigid bodies. See the [module-level documentation](dynamics::rigid_body::forces).       |
-/// | [`BodyRadiiPlugin`]               | Manages [`BodyRadii`] for rigid bodies, which are used for various optimizations.                                                                          |
+/// | [`BodySizeMetricsPlugin`]         | Manages [`BodySizeMetrics`] for rigid bodies, which are used for various optimizations.                                                                    |
 /// | [`SpatialQueryPlugin`]            | Handles spatial queries like [raycasting](spatial_query#raycasting) and [shapecasting](spatial_query#shapecasting).                                        |
 /// | [`PhysicsInterpolationPlugin`]    | [`Transform`] interpolation and extrapolation for rigid bodies.                                                                                            |
 /// | [`PhysicsTransformPlugin`]        | Manages physics transforms and synchronizes them with [`Transform`].                                                                                       |
@@ -775,7 +775,7 @@ impl PluginGroup for PhysicsPlugins {
             .add(ColliderBackendPlugin::<Collider>::new(self.schedule))
             .add(ColliderTreePlugin::<Collider>::default())
             .add(NarrowPhasePlugin::<Collider>::default())
-            .add(BodyRadiiPlugin::<Collider>::default());
+            .add(BodySizeMetricsPlugin::<Collider>::default());
 
         // Add solver plugins.
         let builder = builder.add_group(SolverPlugins::new_with_length_unit(self.length_unit));

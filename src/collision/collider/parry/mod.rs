@@ -439,7 +439,7 @@ impl AnyCollider for Collider {
         )
     }
 
-    fn min_thickness_with_context(&self, _context: ColliderContext<Self::Context>) -> Scalar {
+    fn ccd_thickness_with_context(&self, _context: ColliderContext<Self::Context>) -> Scalar {
         self.shape_scaled().ccd_thickness()
     }
 
@@ -452,7 +452,7 @@ impl AnyCollider for Collider {
         point.distance(bounding_sphere.center) + bounding_sphere.radius
     }
 
-    fn max_extent_with_context(&self, _context: ColliderContext<Self::Context>) -> Scalar {
+    fn bounding_radius_with_context(&self, _context: ColliderContext<Self::Context>) -> Scalar {
         let center_of_mass = self.center_of_mass();
         self.max_distance_to_point(center_of_mass)
     }

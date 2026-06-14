@@ -103,8 +103,8 @@ impl<C: AnyCollider> Plugin for ColliderTreeUpdatePlugin<C> {
 
                     // Compute and cache the size-relative AABB margin for the collider.
                     let context = ColliderContext::new(trigger.entity, &*collider_context);
-                    *aabb_margin = ColliderAabbMargin::from_max_extent(
-                        collider.max_extent_with_context(context),
+                    *aabb_margin = ColliderAabbMargin::from_bounding_radius(
+                        collider.bounding_radius_with_context(context),
                         length_unit.0,
                     );
 
@@ -776,8 +776,8 @@ fn update_solver_body_aabbs<C: AnyCollider>(
                 // Recompute the cached AABB margin if the collider shape changed.
                 if collider.is_changed() {
                     let context = ColliderContext::new(collider_entity, &*collider_context);
-                    *aabb_margin = ColliderAabbMargin::from_max_extent(
-                        collider.max_extent_with_context(context),
+                    *aabb_margin = ColliderAabbMargin::from_bounding_radius(
+                        collider.bounding_radius_with_context(context),
                         length_unit.0,
                     );
                 }
@@ -929,8 +929,8 @@ pub fn update_moved_collider_aabbs<C: AnyCollider>(
             // Recompute the cached AABB margin if the collider shape changed.
             if collider_changed {
                 let context = ColliderContext::new(entity, &*collider_context);
-                *aabb_margin = ColliderAabbMargin::from_max_extent(
-                    collider.max_extent_with_context(context),
+                *aabb_margin = ColliderAabbMargin::from_bounding_radius(
+                    collider.bounding_radius_with_context(context),
                     length_unit.0,
                 );
             }

@@ -257,11 +257,14 @@ pub trait AnyCollider: Component<Mutability = Mutable> + ComputeMassProperties {
         context: ColliderPairContext<Self::Context>,
     );
 
-    /// Returns the minimum thickness of the collider.
+    /// Returns a conservative minimum thickness used by [Continuous Collision Detection (CCD)][CCD]
+    /// to determine when the collider might tunnel through other geometry.
     ///
     /// Typically corresponds to the minimum distance from the centroid
     /// of any given shape to its surface.
-    fn min_thickness_with_context(&self, context: ColliderContext<Self::Context>) -> Scalar {
+    ///
+    /// [CCD]: crate::dynamics::ccd
+    fn ccd_thickness_with_context(&self, context: ColliderContext<Self::Context>) -> Scalar {
         let aabb = self.aabb_with_context(Vector::ZERO, Rotation::IDENTITY, context);
         aabb.size().min_element() * 0.5
     }
@@ -276,12 +279,13 @@ pub trait AnyCollider: Component<Mutability = Mutable> + ComputeMassProperties {
         point.distance(aabb.center()) + aabb.size().length() * 0.5
     }
 
-    /// Returns the maximum extent of the collider. This is the farthest distance
-    /// from the centroid of the shape to any point on its surface.
+    /// Returns the radius of the bounding sphere of the collider.
     ///
     /// This is used to compute a size-relative [`ColliderAabbMargin`] for the collider.
-    fn max_extent_with_context(&self, context: ColliderContext<Self::Context>) -> Scalar {
-        let aabb = self.aabb_with_context(Vector::ZERO, Rotation::IDENTITY, context);
+    fn bounding_radius_with_context(&self, context: ColliderContext<Self::Context>) -> Scalar {
+        // We don't have a bounding sphere method directly available here,
+        // so for now we settle for this approximation for the default implementation.
+        let aabb = self.aabb_with_context(Vector::ZERO, Rotation::IDENTITY, context.clone());
         aabb.size().length() * 0.5
     }
 }
@@ -346,28 +350,27 @@ pub trait SimpleCollider: AnyCollider<Context = ()> {
         )
     }
 
-    /// Returns the minimum thickness of the collider.
+    /// Returns a conservative minimum thickness used by [Continuous Collision Detection (CCD)][CCD]
+    /// to determine when the collider might tunnel through other geometry.
     ///
     /// Typically corresponds to the minimum distance from the centroid
     /// of any given shape to its surface.
-    fn min_thickness(&self) -> Scalar {
-        self.min_thickness_with_context(ColliderContext::fake())
+    ///
+    /// [CCD]: crate::dynamics::ccd
+    fn ccd_thickness(&self) -> Scalar {
+        self.ccd_thickness_with_context(ColliderContext::fake())
     }
 
     /// Returns the maximum distance from the collider to the given point.
-    ///
-    /// Typically corresponds to the radius of the sphere formed by sweeping
-    /// the shape about its centroid.
     fn max_distance_to_point(&self, point: Vector) -> Scalar {
         self.max_distance_to_point_with_context(point, ColliderContext::fake())
     }
 
-    /// Returns the maximum extent of the collider. This is the farthest distance
-    /// from the centroid of the shape to any point on its surface.
+    /// Returns the radius of the bounding sphere of the collider.
     ///
     /// This is used to compute a size-relative [`ColliderAabbMargin`] for the collider.
-    fn max_extent(&self) -> Scalar {
-        self.max_extent_with_context(ColliderContext::fake())
+    fn bounding_radius(&self) -> Scalar {
+        self.bounding_radius_with_context(ColliderContext::fake())
     }
 }
 
@@ -625,11 +628,12 @@ impl From<ColliderAabb> for obvhs::aabb::Aabb {
 
 /// An Axis-Aligned Bounding Box that contains the [`ColliderAabb`] with an additional margin.
 ///
-/// This is used to avoid updating the Bounding Volume Hierarchy acceleration structure
-/// every time a collider moves only a small amount.
+/// This is used to avoid updating the [`ColliderTree`] every time a collider moves only a small amount.
 ///
 /// The enlarged AABB is updated automatically whenever the [`ColliderAabb`]
 /// moves beyond the bounds of the current enlarged AABB.
+///
+/// [`ColliderTree`]: crate::collider_tree::ColliderTree
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serialize", reflect(Serialize, Deserialize))]
@@ -668,12 +672,13 @@ impl EnlargedAabb {
 /// The margin used to enlarge the [`ColliderAabb`] of a collider into its [`EnlargedAabb`].
 ///
 /// Enlarging the AABB allows the collider to move by a small amount without triggering
-/// an update of the Bounding Volume Hierarchy, which improves performance.
+/// an update of the [`ColliderTree`], which improves performance.
 ///
 /// The margin is computed automatically from the size of the collider, scaled relative to the
 /// [`PhysicsLengthUnit`]. Larger shapes get a larger margin (up to [`ColliderAabbMargin::MAX`]),
 /// while small shapes get a margin proportional to their size to avoid wastefully fat AABBs.
 ///
+/// [`ColliderTree`]: crate::collider_tree::ColliderTree
 /// [`PhysicsLengthUnit`]: crate::dynamics::solver::PhysicsLengthUnit
 #[derive(Reflect, Clone, Copy, Component, Debug, Default, Deref, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
@@ -690,18 +695,18 @@ impl ColliderAabbMargin {
     /// [`PhysicsLengthUnit`]: crate::dynamics::solver::PhysicsLengthUnit
     pub const MAX: Scalar = 0.05;
 
-    /// For small shapes, the margin is limited to this fraction of the shape's maximum extent.
+    /// For small shapes, the margin is limited to this fraction of the shape's bounding radius.
     pub const FRACTION: Scalar = 0.125;
 
-    /// Computes the AABB margin for a collider with the given `max_extent` and [`PhysicsLengthUnit`].
+    /// Computes the AABB margin for a collider with the given `bounding_radius` and [`PhysicsLengthUnit`].
     ///
     /// The margin is clamped to at most [`ColliderAabbMargin::MAX`] scaled by the length unit,
-    /// and at most [`ColliderAabbMargin::FRACTION`] of the maximum extent for small shapes.
+    /// and at most [`ColliderAabbMargin::FRACTION`] of the bounding radius for small shapes.
     ///
     /// [`PhysicsLengthUnit`]: crate::dynamics::solver::PhysicsLengthUnit
     #[inline]
-    pub fn from_max_extent(max_extent: Scalar, length_unit: Scalar) -> Self {
-        Self((length_unit * Self::MAX).min(Self::FRACTION * max_extent))
+    pub fn from_bounding_radius(bounding_radius: Scalar, length_unit: Scalar) -> Self {
+        Self((length_unit * Self::MAX).min(Self::FRACTION * bounding_radius))
     }
 }
 

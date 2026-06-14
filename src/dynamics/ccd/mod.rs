@@ -333,8 +333,8 @@ pub struct SweptCcd {
     /// **Default**: [`SweepMode::NonLinear`]
     pub mode: SweepMode,
 
-    /// The fraction of a body's minimum CCD thickness it may travel in a timestep before being
-    /// treated as a fast-moving body.
+    /// The fraction of a body's minimum [`ccd_thickness`](BodySizeMetrics::ccd_thickness)
+    /// it may travel in a timestep before being treated as a fast-moving body.
     ///
     /// This should typically be in the range `[0.0, 1.0]` to prevent tunneling.
     /// Smaller values trigger CCD more easily, which can help prevent overlap,
@@ -544,7 +544,7 @@ struct CcdBodyQuery {
     rotation: &'static Rotation,
     com: &'static ComputedCenterOfMass,
     colliders: &'static RigidBodyColliders,
-    body_radii: &'static BodyRadii,
+    size_metrics: &'static BodySizeMetrics,
     ccd: Option<&'static SweptCcd>,
 }
 
@@ -636,8 +636,8 @@ fn solve_continuous(
         }
 
         let body = fast.body;
-        let min_thickness = fast.body_radii.min_thickness;
-        let sweep_radius = fast.body_radii.sweep_radius;
+        let ccd_thickness = fast.size_metrics.ccd_thickness;
+        let sweep_radius = fast.size_metrics.sweep_radius;
 
         // Compute the speed and displacement to determine whether the body moved
         // enough to be considered a fast body that requires CCD.
@@ -665,9 +665,9 @@ fn solve_continuous(
         // The maximum of the two, which is an upper bound on how far any point on the body travels
         let max_motion = max_delta_position.max(max_velocity * delta_secs);
 
-        // Check if the body moved more than the threshold fraction of its minimum thickness.
+        // Check if the body moved more than the threshold fraction of its CCD thickness.
         // CCD is only performed for bodies that are actually at risk of tunneling or deep overlap.
-        if max_motion <= ccd.threshold * min_thickness {
+        if max_motion <= ccd.threshold * ccd_thickness {
             // Not a fast body, so no CCD is needed.
             return;
         }

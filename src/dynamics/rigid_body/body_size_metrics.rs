@@ -1,6 +1,8 @@
-//! Radii associated with a [`RigidBody`] and its colliders.
+//! Size metrics associated with a [`RigidBody`] and its colliders.
 //!
-//! See [`BodyRadii`] for more information.
+//! See [`BodySizeMetrics`] for more information.
+//!
+//! [`RigidBody`]: crate::dynamics::rigid_body::RigidBody
 
 use core::marker::PhantomData;
 
@@ -16,23 +18,25 @@ use crate::{
     schedule::{PhysicsSchedule, PhysicsStepSystems},
 };
 
-/// Radii associated with a [`RigidBody`] and its colliders.
+/// Size metrics associated with a [`RigidBody`] and its colliders.
 ///
 /// These can be used for various purposes, such as determining thresholds
 /// for Continuous Collision Detection (CCD), sleeping, and contact recycling.
 ///
-/// The values are automatically computed and updated by the [`BodyRadiiPlugin`].
+/// The values are automatically computed and updated by the [`BodySizeMetricsPlugin`].
 #[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
-pub struct BodyRadii {
-    /// The minimum "core" thickness of the colliders attached to the body.
+pub struct BodySizeMetrics {
+    /// A conservative minimum thickness used by [Continuous Collision Detection (CCD)][CCD]
+    /// to determine how far the body can move in a single timestep before it might start to
+    /// tunnel through geometry.
     ///
-    /// Typically corresponds to the minimum distance from the centroid
+    /// This is the minimum [`ccd_thickness`] of the colliders attached to the body,
+    /// and typically corresponds to the minimum distance from the centroid
     /// of any given shape to its surface.
     ///
-    /// This can be useful for Continuous Collision Detection (CCD)
-    /// to determine how far the body can move before it might start to tunnel
-    /// through other geometry, for example.
-    pub min_thickness: Scalar,
+    /// [CCD]: crate::dynamics::ccd
+    /// [`ccd_thickness`]: crate::collision::collider::AnyCollider::ccd_thickness_with_context
+    pub ccd_thickness: Scalar,
 
     /// The maximum distance from the center of mass of the body to the surface
     /// of any of its colliders.
@@ -46,37 +50,37 @@ pub struct BodyRadii {
     pub sweep_radius: Scalar,
 }
 
-impl Default for BodyRadii {
+impl Default for BodySizeMetrics {
     fn default() -> Self {
         Self {
-            min_thickness: Scalar::INFINITY,
+            ccd_thickness: Scalar::INFINITY,
             sweep_radius: 0.0,
         }
     }
 }
 
-/// A plugin for computing and updating [`BodyRadii`] for rigid bodies.
+/// A plugin for computing and updating [`BodySizeMetrics`] for rigid bodies.
 #[derive(Default)]
-pub struct BodyRadiiPlugin<C: AnyCollider> {
+pub struct BodySizeMetricsPlugin<C: AnyCollider> {
     _phantom: PhantomData<C>,
 }
 
-impl<C: AnyCollider> Plugin for BodyRadiiPlugin<C> {
+impl<C: AnyCollider> Plugin for BodySizeMetricsPlugin<C> {
     fn build(&self, app: &mut App) {
-        // Update body radii before they are consumed by the solver and continuous collision
+        // Update body size metrics before they are consumed by the solver and continuous collision
         // detection. Allowing ambiguities lets multiple collision backends coexist.
         app.add_systems(
             PhysicsSchedule,
-            update_body_radii::<C>
+            update_body_size_metrics::<C>
                 .before(PhysicsStepSystems::Solver)
                 .ambiguous_with_all(),
         );
     }
 }
 
-fn update_body_radii<C: AnyCollider>(
+fn update_body_size_metrics<C: AnyCollider>(
     mut bodies: Query<(
-        &mut BodyRadii,
+        &mut BodySizeMetrics,
         &RigidBodyColliders,
         Ref<ComputedCenterOfMass>,
     )>,
@@ -86,7 +90,7 @@ fn update_body_radii<C: AnyCollider>(
 ) {
     let context = context.into_inner();
 
-    for (mut body_radii, rb_colliders, com) in bodies.iter_mut() {
+    for (mut size_metrics, rb_colliders, com) in bodies.iter_mut() {
         if !com.is_changed()
             && !rb_colliders
                 .iter()
@@ -96,15 +100,15 @@ fn update_body_radii<C: AnyCollider>(
             continue;
         }
 
-        let mut min_thickness: Scalar = Scalar::INFINITY;
+        let mut ccd_thickness: Scalar = Scalar::INFINITY;
         let mut sweep_radius: Scalar = 0.0;
 
-        // Find the minimum thickness and maximum sweep radius.
+        // Find the minimum CCD thickness and maximum sweep radius.
         for (entity, collider, collider_transform) in colliders.iter_many(rb_colliders) {
-            // Compute the minimum thickness
+            // Compute the CCD thickness
             let ctx = ColliderContext::new(entity, &context);
-            let thickness = collider.min_thickness_with_context(ctx);
-            min_thickness = min_thickness.min(thickness);
+            let thickness = collider.ccd_thickness_with_context(ctx);
+            ccd_thickness = ccd_thickness.min(thickness);
 
             // Compute the sweep radius
             let ctx = ColliderContext::new(entity, &context);
@@ -113,7 +117,7 @@ fn update_body_radii<C: AnyCollider>(
             sweep_radius = sweep_radius.max(distance_to_com);
         }
 
-        body_radii.min_thickness = min_thickness;
-        body_radii.sweep_radius = sweep_radius;
+        size_metrics.ccd_thickness = ccd_thickness;
+        size_metrics.sweep_radius = sweep_radius;
     }
 }
