@@ -84,9 +84,11 @@ bevy = { version = "0.19.0-rc.2", default-features = false, features = [
     "bevy_log",
 ] }
 bevy_math = { version = "0.19.0-rc.2", features = ["approx"] }
-glam_matrix_extras = { git = "https://github.com/olukowski/glam_matrix_extras", features = ["bevy_reflect"] }
-bevy_heavy = { git = "https://github.com/olukowski/bevy_heavy" }
-bevy_transform_interpolation = { git = "https://github.com/olukowski/bevy_transform_interpolation" }
+glam_matrix_extras = { git = "https://github.com/Jondolf/glam_matrix_extras", features = [
+    "bevy_reflect",
+] }
+bevy_heavy = { git = "https://github.com/avianphysics/bevy_heavy" }
+bevy_transform_interpolation = { git = "https://github.com/Jondolf/bevy_transform_interpolation" }
 libm = { version = "0.2", optional = true }
 approx = "0.5"
 parry3d = { version = "0.27", optional = true }
@@ -103,16 +105,18 @@ disqualified = { version = "1.0" }
 
 [dev-dependencies]
 examples_common_3d = { path = "../examples_common_3d" }
-bevy = { version = "0.19.0-rc.2",features = [
+bevy = { version = "0.19.0-rc.2", features = [
     "3d",
     "ui",
     "https",
     "bevy_feathers",
 ] }
-bevy_heavy = { git = "https://github.com/olukowski/bevy_heavy", features = ["approx"] }
+bevy_heavy = { git = "https://github.com/avianphysics/bevy_heavy", features = [
+    "approx",
+] }
 criterion = { version = "0.8", features = ["html_reports"] }
 bevy_mod_debugdump = { version = "0.15" }
-rand = "0.9"
+rand = "0.10"
 
 [lints]
 workspace = true
