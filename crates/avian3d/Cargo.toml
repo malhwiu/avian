@@ -115,7 +115,7 @@ bevy_heavy = { git = "https://github.com/avianphysics/bevy_heavy", features = [
     "approx",
 ] }
 criterion = { version = "0.8", features = ["html_reports"] }
-# bevy_mod_debugdump = { version = "0.15" }
+bevy_mod_debugdump = { version = "0.16" }
 rand = "0.10"
 
 [lints]
