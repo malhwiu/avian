@@ -383,7 +383,7 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "avian2d"
-version = "0.7.0"
+version = "0.8.0-dev"
 dependencies = [
  "approx",
  "arrayvec",
@@ -401,7 +401,7 @@ dependencies = [
  "examples_common_2d",
  "glam 0.32.1",
  "glam_matrix_extras",
- "itertools 0.14.0",
+ "itertools 0.15.0",
  "libm",
  "obvhs",
  "parry2d",
@@ -414,7 +414,7 @@ dependencies = [
 
 [[package]]
 name = "avian3d"
-version = "0.7.0"
+version = "0.8.0-dev"
 dependencies = [
  "approx",
  "avian_derive",
@@ -429,7 +429,7 @@ dependencies = [
  "disqualified",
  "examples_common_3d",
  "glam_matrix_extras",
- "itertools 0.14.0",
+ "itertools 0.15.0",
  "libm",
  "obvhs",
  "parry3d",
@@ -443,7 +443,7 @@ dependencies = [
 
 [[package]]
 name = "avian_derive"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "proc-macro-error3",
  "proc-macro2",
@@ -1009,8 +1009,9 @@ dependencies = [
 
 [[package]]
 name = "bevy_heavy"
-version = "0.5.0-dev"
-source = "git+https://github.com/avianphysics/bevy_heavy#24bab45a1177290a23f68669f88a00965e1d8e47"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afbd898e2c06dfba5854db187a3daece1eaf655c8fc385604bbe5b9304ed3f9b"
 dependencies = [
  "approx",
  "bevy_math",
@@ -1753,8 +1754,9 @@ dependencies = [
 
 [[package]]
 name = "bevy_transform_interpolation"
-version = "0.5.0-dev"
-source = "git+https://github.com/Jondolf/bevy_transform_interpolation#ad8c2eaa3087079182649250bcabcb01267c9e93"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea40784f1c6a3f61333064ea1d1c7663ef677c1ce46b5ca148c46c4a62c27e62"
 dependencies = [
  "bevy",
  "serde",
@@ -3090,8 +3092,9 @@ dependencies = [
 
 [[package]]
 name = "glam_matrix_extras"
-version = "0.3.0-dev"
-source = "git+https://github.com/Jondolf/glam_matrix_extras#588240df48ff7ce37292ccc70668c1bbd8b02190"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db060a7f23a5666ccbe9c770cd0e0e419b2eb94c86a7c8bfd091bacf8b4926cd"
 dependencies = [
  "approx",
  "bevy_reflect",
@@ -3580,6 +3583,15 @@ name = "itertools"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b4baf93f58d4425749ca49a51c50ebab072c5df6994d08fed93541c331481dc"
 dependencies = [
  "either",
 ]
